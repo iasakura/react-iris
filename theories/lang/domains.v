@@ -109,13 +109,34 @@ Inductive mode :=
   | MEvent.     (* •: event loop, waiting for user input *)
 
 (** ** Evaluation contexts of the paper's big-step judgment
-    (Σ ::= m | π — whole-memory vs. local-view context) *)
+    (Σ ::= m | π — whole-memory vs. local-view context).
+
+    We bundle the current path with the local-view context: in the paper the
+    path is a subscript of the judgment, but it is only ever consulted
+    together with a view context (STTBIND binds setters to it, APPSETCOMP
+    compares against it), and Normal-phase evaluation has no path. *)
 Inductive rctx :=
   | RCtxMem (m : tree_mem)
-  | RCtxView (π : view).
+  | RCtxView (p : path) (π : view).
 
 (** ** Output buffer (observations of [print]) *)
 Definition out_buf := list val.
+
+(** ** Machine configurations (paper: ⟨t, m, ω, δ, μ⟩; the definition
+    table δ is a parameter, not part of the configuration) *)
+Record config := Config {
+  c_tree : tree;
+  c_mem : tree_mem;
+  c_out : out_buf;
+  c_mode : mode;
+}.
+
+(** ** Displays: the realized view hierarchy observed in quiescent states
+    (constants and structure are visible; handlers are opaque) *)
+Inductive dtree :=
+  | DConst (k : const)
+  | DHandler
+  | DList (ds : list dtree).
 
 (** ** Record updates *)
 Global Instance st_entry_settable : Settable st_entry :=
@@ -124,6 +145,8 @@ Global Instance decisions_settable : Settable decisions :=
   settable! Decisions <dec_check; dec_effect>.
 Global Instance view_settable : Settable view :=
   settable! View <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child>.
+Global Instance config_settable : Settable config :=
+  settable! Config <c_tree; c_mem; c_out; c_mode>.
 
 (** ** Decidable equality *)
 Global Instance val_eq_dec : EqDecision val.
@@ -144,6 +167,17 @@ Global Instance decisions_eq_dec : EqDecision decisions.
 Proof. solve_decision. Defined.
 Global Instance st_entry_eq_dec : EqDecision st_entry.
 Proof. solve_decision. Defined.
+Global Instance phase_eq_dec : EqDecision phase.
+Proof. solve_decision. Defined.
+Global Instance mode_eq_dec : EqDecision mode.
+Proof. solve_decision. Defined.
+
+Global Instance dtree_eq_dec : EqDecision dtree.
+Proof.
+  refine (fix go (d1 d2 : dtree) : {d1 = d2} + {d1 ≠ d2} := _).
+  assert (EqDecision dtree) as Hgo by exact go.
+  decide equality; apply (decide _).
+Defined.
 
 (** [useState]'s Succ-phase comparison [vₙ ≢ v₀] (STTREBIND) is decidable
     value equality; the reference interpreter compares values structurally. *)
