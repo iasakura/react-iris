@@ -1,0 +1,3 @@
+[submodule "vendor/react-trace"]
+	path = vendor/react-trace
+	url = https://github.com/Zeta611/react-trace

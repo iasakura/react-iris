@@ -1,0 +1,24 @@
+# opam local switch symlink
+_opam
+
+# Rocq build artifacts
+*.vo
+*.vos
+*.vok
+*.glob
+*.aux
+.coq-native/
+.lia.cache
+.nia.cache
+Makefile.coq
+Makefile.coq.conf
+.Makefile.coq.d
+.coqdeps.d
+_build/
+
+# editor
+.vscode/
+*.swp
+
+# local-only Japanese draft of the design doc
+docs/design.ja.md

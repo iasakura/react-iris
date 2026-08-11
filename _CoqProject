@@ -1,0 +1,6 @@
+-Q theories react_iris
+-arg -w -arg -notation-overridden
+
+theories/prelude.v
+theories/lang/syntax.v
+theories/lang/domains.v
