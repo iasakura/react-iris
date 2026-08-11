@@ -6,7 +6,7 @@
     the differential-testing harness against the OCaml interpreter
     ([vendor/react-trace]) is in place. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp.
+From react_iris.lang Require Import syntax domains interp machine.
 
 Local Definition intc (n : Z) : expr := EConst (CInt n).
 Local Definition strc (s : string) : expr := EConst (CString s).
@@ -247,4 +247,53 @@ Example eff_cross_state :
 Proof. vm_compute. reflexivity. Qed.
 
 Example eff_cross_display : run_display eff_cross_prog [] = Ok (DConst CUnit).
+Proof. vm_compute. reflexivity. Qed.
+
+(** ** Machine / interpreter cross-validation
+
+    The small-step machine ([machine.v]) must produce exactly the same
+    quiescent configuration (tree, memory, output) as the interpreter on
+    every test program — this validates the machine definition (including
+    its eager write-back deviation) before the inductive agreement proof
+    exists. Machine fuel counts individual steps, hence the larger bound. *)
+Local Definition MFUEL : nat := 20000.
+
+Example agree_counter_init :
+  machine_result MFUEL counter_prog [] = interp_result FUEL counter_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_counter_click :
+  machine_result MFUEL counter_prog [0%nat]
+    = interp_result FUEL counter_prog [0%nat].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_selfcounter :
+  machine_result MFUEL selfcounter_prog []
+    = interp_result FUEL selfcounter_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_inf2 : machine_result MFUEL inf2_prog [] = OOF.
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_demo :
+  machine_result MFUEL demo_prog [] = interp_result FUEL demo_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_demo_click :
+  machine_result MFUEL demo_prog [0%nat]
+    = interp_result FUEL demo_prog [0%nat].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_bin :
+  machine_result MFUEL bin_prog [] = interp_result FUEL bin_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_cross_setter :
+  machine_result MFUEL cross_setter_prog []
+    = interp_result FUEL cross_setter_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_eff_cross :
+  machine_result MFUEL eff_cross_prog []
+    = interp_result FUEL eff_cross_prog [].
 Proof. vm_compute. reflexivity. Qed.

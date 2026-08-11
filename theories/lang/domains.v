@@ -179,6 +179,11 @@ Proof.
   decide equality; apply (decide _).
 Defined.
 
+Global Instance view_eq_dec : EqDecision view.
+Proof. solve_decision. Defined.
+Global Instance config_eq_dec : EqDecision config.
+Proof. solve_decision. Defined.
+
 (** [useState]'s Succ-phase comparison [vₙ ≢ v₀] (STTREBIND) is decidable
     value equality; the reference interpreter compares values structurally. *)
 Definition val_eqb (v1 v2 : val) : bool := bool_decide (v1 = v2).

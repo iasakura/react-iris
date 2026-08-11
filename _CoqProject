@@ -5,4 +5,5 @@ theories/prelude.v
 theories/lang/syntax.v
 theories/lang/domains.v
 theories/lang/interp.v
+theories/lang/machine.v
 theories/lang/tests.v
