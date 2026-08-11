@@ -7,3 +7,6 @@ theories/lang/domains.v
 theories/lang/interp.v
 theories/lang/machine.v
 theories/lang/tests.v
+theories/logic/inst.v
+theories/logic/lifting.v
+theories/examples/counter.v
