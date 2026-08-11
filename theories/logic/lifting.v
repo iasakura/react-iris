@@ -63,14 +63,12 @@ End resources.
 Section iris_instance.
   Context `{!invGS Σ, !reactGS Σ}.
 
-  Global Program Instance react_irisGS (δ : def_table)
-      : irisGS (reactLang δ) Σ := {|
-    iris_invGS := _;
-    state_interp σ _ _ _ := state_res σ;
-    fork_post _ := True%I;
-    num_laters_per_step _ := 0%nat;
-  |}.
-  Next Obligation. intros. by iIntros "$". Qed.
+  (* Defined transparently, field for field the instance that Iris's
+     [wp_adequacy] constructs, so that WPs proved against it apply
+     directly in the adequacy proof (conversion). *)
+  Global Instance react_irisGS (δ : def_table) : irisGS (reactLang δ) Σ :=
+    IrisG _ (λ σ _ _ _, state_res σ) (λ _, True%I) (λ _, 0%nat)
+      (λ σ ns κs nt, fupd_intro ∅ (state_res σ)).
 End iris_instance.
 
 Section wp_run.

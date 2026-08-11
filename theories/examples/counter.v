@@ -10,8 +10,8 @@
     hook and component specifications is the goal of M3. *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains interp machine tests.
-From react_iris.logic Require Import inst lifting.
-From iris.program_logic Require Import weakestpre.
+From react_iris.logic Require Import inst lifting adequacy.
+From iris.program_logic Require Import weakestpre adequacy.
 From iris.proofmode Require Import proofmode.
 
 Section counter.
@@ -39,3 +39,20 @@ Section counter.
     by vm_compute.
   Qed.
 End counter.
+
+(** A pure corollary, with no Iris in the statement: every machine
+    execution of the Counter program is safe (no Rules-of-React violation
+    is reachable), and any reached value is a quiescent tree. *)
+Corollary counter_adequate :
+  adequate NotStuck
+    (cfg_expr (machine_init_cfg counter_prog)
+       : expr (reactLang (prog_def_table counter_prog)))
+    (cfg_state (machine_init_cfg counter_prog))
+    (λ w _, ∃ t, w = MIdle t).
+Proof.
+  apply (react_adequacy reactΣ).
+  intros HI HR. iIntros "Hown".
+  iApply (wp_wand with "[Hown]").
+  { by iApply counter_wp. }
+  iIntros (w) "(%t & %cf & -> & _ & _)". eauto.
+Qed.
