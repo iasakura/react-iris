@@ -128,6 +128,16 @@ Section wp_run.
     by iFrame.
   Qed.
 
+  (** Bind: run the focus down to a result, then resume the frames.
+      Direct specialization of Iris's generic [wp_bind] to the
+      [LanguageCtx] instance of [fill] — the key to modular specs of
+      sub-computations (component bodies, runtime operations). *)
+  Lemma wp_fill (Ks : list machine.frame) (e : lexpr) (Φ : mval → iProp Σ) :
+    WP (e : expr (reactLang δ))
+      {{ w, WP (fill Ks (lof_val w) : expr (reactLang δ)) {{ Φ }} }} -∗
+    WP (fill Ks e : expr (reactLang δ)) {{ Φ }}.
+  Proof. iIntros "H". by iApply (wp_bind (fill Ks)). Qed.
+
   (** Deterministic execution to quiescence implies WP. *)
   Lemma wp_mrun_ok (n : nat) (c c' : mcfg) (Φ : mval → iProp Σ) :
     mrun δ n c = Ok c' →

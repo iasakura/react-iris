@@ -79,6 +79,26 @@ Proof.
   by intros [= ->].
 Qed.
 
+(** ** Frame-stack contexts
+
+    Appending frames below the current stack is the machine's notion of
+    an evaluation context: [fill K e] runs [e]'s focus down to a result
+    and then resumes the frames [K]. *)
+Definition fill (K : list frame) (e : lexpr) : lexpr := (e.1, e.2 ++ K).
+
+Definition app_cfg (K : list frame) (c : mcfg) : mcfg :=
+  MCfg (mc_focus c) (mc_stack c ++ K) (mc_mem c) (mc_reg c) (mc_out c).
+
+Lemma app_cfg_glue K e σ : glue (fill K e) σ = app_cfg K (glue e σ).
+Proof. by destruct e. Qed.
+Lemma app_cfg_expr K c : cfg_expr (app_cfg K c) = fill K (cfg_expr c).
+Proof. done. Qed.
+Lemma app_cfg_state K c : cfg_state (app_cfg K c) = cfg_state c.
+Proof. done. Qed.
+
+Lemma fill_lto_val K e : lto_val e = None → lto_val (fill K e) = None.
+Proof. destruct e as [f ks]; destruct f, ks; done. Qed.
+
 Section lang.
   Context (δ : def_table).
 
@@ -102,4 +122,47 @@ Section lang.
   Qed.
 
   Canonical Structure reactLang : language := Language react_lang_mixin.
+
+  (** [mstep] commutes with appending frames below a non-value: no step
+      inspects the stack beyond its head, and a non-value never exposes
+      the appended frames as the head. This single fact makes [fill K] a
+      [LanguageCtx], from which Iris's generic [wp_bind] follows. *)
+  Lemma mstep_app K c :
+    lto_val (cfg_expr c) = None →
+    mstep δ (app_cfg K c) = app_cfg K <$> mstep δ c.
+  Proof.
+    destruct c as [f ks m r o]. intros Hnv.
+    destruct f, ks; try done; cbn;
+      repeat (case_match; simplify_eq/=; try done).
+    (* residual [≫=] on opaque helpers: split on their result *)
+    all: by first [ destruct (view_enqueue _ _ _)
+                  | destruct (un_op_eval _ _)
+                  | destruct (bin_op_eval _ _ _) ].
+  Qed.
+
+  Global Instance fill_ctx K : LanguageCtx (Λ := reactLang) (fill K).
+  Proof.
+    split.
+    - intros e. apply fill_lto_val.
+    - intros e1 σ1 κ e2 σ2 efs (-> & -> & Hstep).
+      pose proof (mstep_not_val _ _ Hstep) as Hnv.
+      rewrite glue_expr in Hnv.
+      split_and!; [done..|].
+      rewrite !app_cfg_glue.
+      rewrite (mstep_app K (glue e1 σ1)); last by rewrite glue_expr.
+      by rewrite Hstep.
+    - intros e1' σ1 κ e2 σ2 efs Hnv (-> & -> & Hstep).
+      rewrite app_cfg_glue in Hstep.
+      rewrite (mstep_app K (glue e1' σ1)) in Hstep;
+        last by rewrite glue_expr.
+      destruct (mstep δ (glue e1' σ1)) as [c0| |] eqn:Hbase; [|done..].
+      cbn in Hstep.
+      assert (app_cfg K c0 = glue e2 σ2) as Hglue by congruence.
+      exists (cfg_expr c0).
+      assert (σ2 = cfg_state c0) as ->.
+      { by rewrite -(glue_state e2 σ2) -Hglue app_cfg_state. }
+      split.
+      + by rewrite -(glue_expr e2 (cfg_state c0)) -Hglue app_cfg_expr.
+      + split_and!; [done..|]. by rewrite glue_split.
+  Qed.
 End lang.
