@@ -4,9 +4,15 @@
     - the language expression [lexpr] (focus + frame stack), and
     - the physical state [lstate] (tree memory, render register, output).
 
-    Values are quiescent trees: [FIdle t] with an empty stack. WP
-    postconditions therefore speak about reaching quiescence (event-loop
-    mode •), matching the top-level theorem shape of design decision D6.
+    Values are terminal foci with an empty stack: intermediate results
+    ([FVal]/[FTree]/[FBool]/[FUnit]) as well as quiescence ([FIdle]).
+    Making intermediate results values is what enables a bind rule
+    ("run the focus down to a result, then resume the frames"), and hence
+    modular specifications of sub-computations — a component body, a
+    single runtime operation — rather than only whole-program runs.
+    A full program still ends in [MIdle t] (event-loop mode •), so
+    top-level WP postconditions speak about reaching quiescence, matching
+    design decision D6.
 
     Steps are the graph of the deterministic [mstep]; a [Stuck] result of
     [mstep] is precisely irreducibility, so Iris safety ("not stuck")
@@ -38,12 +44,40 @@ Proof. by destruct e. Qed.
 Lemma glue_state e σ : cfg_state (glue e σ) = σ.
 Proof. by destruct σ. Qed.
 
-Definition lof_val (t : tree) : lexpr := (FIdle t, []).
-Definition lto_val (e : lexpr) : option tree :=
-  match e with (FIdle t, []) => Some t | _ => None end.
+(** ** Machine values *)
+Inductive mval :=
+  | MRetV (v : domains.val)  (* an expression evaluated to a value
+                                ([domains.val]; [language.val] shadows it) *)
+  | MRetT (t : tree)    (* init/reconcile built a tree *)
+  | MRetB (b : bool)    (* check reported whether a re-render happened *)
+  | MRetU               (* commit finished *)
+  | MIdle (t : tree).   (* quiescent: event-loop mode • *)
 
-Lemma lto_val_cfg c : lto_val (cfg_expr c) = mcfg_value c.
-Proof. by destruct c as [f ks ???]; destruct f, ks. Qed.
+Definition lof_val (w : mval) : lexpr :=
+  match w with
+  | MRetV v => (FVal v, [])
+  | MRetT t => (FTree t, [])
+  | MRetB b => (FBool b, [])
+  | MRetU => (FUnit, [])
+  | MIdle t => (FIdle t, [])
+  end.
+
+Definition lto_val (e : lexpr) : option mval :=
+  match e with
+  | (FVal v, []) => Some (MRetV v)
+  | (FTree t, []) => Some (MRetT t)
+  | (FBool b, []) => Some (MRetB b)
+  | (FUnit, []) => Some MRetU
+  | (FIdle t, []) => Some (MIdle t)
+  | _ => None
+  end.
+
+Lemma lto_val_idle c t :
+  mcfg_value c = Some t → lto_val (cfg_expr c) = Some (MIdle t).
+Proof.
+  destruct c as [f ks ???]; destruct f, ks; try done.
+  by intros [= ->].
+Qed.
 
 Section lang.
   Context (δ : def_table).
@@ -52,16 +86,19 @@ Section lang.
       (e2 : lexpr) (σ2 : lstate) (efs : list lexpr) : Prop :=
     κ = [] ∧ efs = [] ∧ mstep δ (glue e1 σ1) = Ok (glue e2 σ2).
 
+  (** A configuration that steps is not a value: terminal foci with an
+      empty stack are exactly where [mstep] is [Stuck]. *)
+  Lemma mstep_not_val c c' :
+    mstep δ c = Ok c' → lto_val (cfg_expr c) = None.
+  Proof. destruct c as [f ks ???]; destruct f, ks; try done; by intros ?. Qed.
+
   Lemma react_lang_mixin : LanguageMixin lof_val lto_val lprim_step.
   Proof.
     split.
-    - by intros t.
-    - intros [f ks] t. destruct f; try done. destruct ks; try done.
-      by intros [= ->].
+    - by intros [].
+    - intros [f ks] w. destruct f, ks; try done; by intros [= <-].
     - intros [f ks] σ κ e' σ' efs (_ & _ & Hstep).
-      (* only [FIdle] has [lto_val ≠ None], and [mstep] is [Stuck] on it,
-         contradicting [Hstep] by discriminate *)
-      by destruct f.
+      exact (mstep_not_val _ _ Hstep).
   Qed.
 
   Canonical Structure reactLang : language := Language react_lang_mixin.

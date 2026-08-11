@@ -1,8 +1,8 @@
 (** * End-to-end WP for the Counter component (M2 prototype).
 
     Validates the language instance and state-interpretation plumbing on a
-    concrete program: from the client's state resource, the machine
-    running [counter_prog] satisfies a weakest precondition whose
+    concrete program: from the client's configuration resources, the
+    machine running [counter_prog] satisfies a weakest precondition whose
     postcondition pins the quiescent display — safety (no Rules-of-React
     violation) plus the rendered view, transported through Iris.
 
@@ -21,18 +21,18 @@ Section counter.
   Local Definition c0 : mcfg := machine_init_cfg counter_prog.
 
   Lemma counter_wp :
-    state_frag (cfg_state c0) -∗
-    WP (cfg_expr c0 : expr (reactLang δ)) {{ t,
-      ∃ σf, state_frag σf ∗
-        ⌜display_t 1000 (ls_mem σf) t
+    own_cfg c0 -∗
+    WP (cfg_expr c0 : expr (reactLang δ)) {{ w,
+      ∃ t cf, ⌜w = MIdle t⌝ ∗ own_cfg cf ∗
+        ⌜display_t 1000 (mc_mem cf) t
            = Ok (DList [DConst (CInt 0); DHandler])⌝ }}.
   Proof.
     destruct (mrun δ 20000 c0) as [c'|msg|] eqn:HE;
       [|by vm_compute in HE..].
-    iIntros "Hfrag".
-    iApply (wp_mrun_ok _ _ _ _ _ HE with "Hfrag").
-    iIntros (t Hval) "Hfrag".
-    iExists (cfg_state c'). iFrame "Hfrag".
+    iIntros "Hown".
+    iApply (wp_mrun_ok _ _ _ _ _ HE with "Hown").
+    iIntros (t Hval) "Hown".
+    iExists t, c'. iFrame "Hown". iSplit; first done.
     iPureIntro.
     vm_compute in HE. simplify_eq.
     vm_compute in Hval. simplify_eq.
