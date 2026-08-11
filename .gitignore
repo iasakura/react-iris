@@ -22,3 +22,6 @@ _build/
 
 # local-only Japanese draft of the design doc
 docs/design.ja.md
+
+# rocq-mcp temp files
+rocq_mcp_cache_*.v
