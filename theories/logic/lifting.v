@@ -126,6 +126,95 @@ Section wp_run.
     by iFrame.
   Qed.
 
+  (** ** Primitive per-step lifting
+
+      [wp_mstep_det] is the base rule for the deterministic machine: to
+      prove a WP of a non-value, exhibit the successor configuration
+      (under the current physical state, learned from [state_res]) and
+      perform the ghost updates for the step. The step-kind rules below
+      derive from it; runtime lemmas (M3) will build on these. *)
+  Lemma wp_mstep_det (e : lexpr) (Φ : mval → iProp Σ) :
+    lto_val e = None →
+    (∀ σ, state_res σ ==∗
+       ∃ c', ⌜mstep δ (glue e σ) = Ok c'⌝ ∗
+             ▷ |==> (state_res (cfg_state c') ∗
+                     WP (cfg_expr c' : expr (reactLang δ)) {{ Φ }})) -∗
+    WP (e : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros (He) "H".
+    iApply wp_lift_step; first exact He.
+    iIntros (σ1 ns κ κs nt) "Hsi".
+    iMod ("H" $! σ1 with "Hsi") as (c' Hstep) "H".
+    iApply fupd_mask_intro; [set_solver|]. iIntros "Hclose".
+    iSplit.
+    { iPureIntro. exists [], (cfg_expr c'), (cfg_state c'), [].
+      split_and!; [done..|]. by rewrite glue_split. }
+    iIntros "!>" (e2 σ2 efs) "%Hp Hlc".
+    destruct Hp as (-> & -> & Hp).
+    rewrite Hstep in Hp.
+    assert (glue e2 σ2 = c') as Hg by congruence.
+    assert (e2 = cfg_expr c') as -> by (by rewrite -Hg glue_expr).
+    assert (σ2 = cfg_state c') as -> by (by rewrite -Hg glue_state).
+    iMod "Hclose" as "_". iMod "H" as "[Hsi Hwp]".
+    iModIntro. iFrame "Hsi". by iSplitL.
+  Qed.
+
+  (** Steps that do not touch the physical state (the bulk of expression
+      evaluation: dispatch, frame push/pop, β-reduction, arithmetic). The
+      side condition is discharged by [reflexivity] at concrete redexes. *)
+  Lemma wp_pure_step (e e' : lexpr) (Φ : mval → iProp Σ) :
+    lto_val e = None →
+    (∀ σ, mstep δ (glue e σ) = Ok (glue e' σ)) →
+    ▷ WP (e' : expr (reactLang δ)) {{ Φ }} -∗
+    WP (e : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros (He Hstep) "Hwp".
+    iApply wp_mstep_det; first done.
+    iIntros (σ) "Hsi". iModIntro.
+    iExists (glue e' σ). iSplit; first done.
+    iNext. iModIntro. rewrite glue_expr glue_state. iFrame.
+  Qed.
+
+  (** Output steps: [print] appends the value to the buffer. *)
+  Lemma wp_print (v : domains.val) (ks : list machine.frame) (ω : out_buf)
+      (Φ : mval → iProp Σ) :
+    out_frag ω -∗
+    ▷ (out_frag (ω ++ [v]) -∗
+       WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
+    WP ((FVal v, KPrint :: ks) : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros "Hout Hwp".
+    iApply wp_mstep_det; first done.
+    iIntros (σ) "(Hm & Hr & Ho)".
+    iDestruct (ghost_var_agree with "Ho Hout") as %<-.
+    iMod (ghost_var_update_halves (ls_out σ ++ [v]) with "Ho Hout")
+      as "[Ho Hout]".
+    iModIntro.
+    iExists (MCfg (FVal (VConst CUnit)) ks (ls_mem σ) (ls_reg σ)
+               (ls_out σ ++ [v])).
+    iSplit; first done.
+    iNext. iModIntro. iFrame "Hm Hr Ho".
+    by iApply "Hwp".
+  Qed.
+
+  (** Sanity demo of the intended proof style: step-by-step symbolic
+      execution of [print 1] via the primitive rules, ending in a value.
+      The pure side conditions compute by [reflexivity]. *)
+  Example wp_print_demo (ω : out_buf) (Φ : mval → iProp Σ) :
+    out_frag ω -∗
+    (out_frag (ω ++ [VConst (CInt 1)]) -∗ Φ (MRetV (VConst CUnit))) -∗
+    WP ((FExpr PNormal [] (EPrint (EConst (CInt 1))), [])
+        : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros "Ho HΦ".
+    iApply (wp_pure_step _ (FExpr PNormal [] (EConst (CInt 1)), [KPrint]));
+      [done|intros σ; reflexivity|]. iNext.
+    iApply (wp_pure_step _ (FVal (VConst (CInt 1)), [KPrint]));
+      [done|intros σ; reflexivity|]. iNext.
+    iApply (wp_print with "Ho"). iNext. iIntros "Ho".
+    iApply (wp_value' _ _ _ (MRetV (VConst CUnit))). by iApply "HΦ".
+  Qed.
+
   (** Bind: run the focus down to a result, then resume the frames.
       Direct specialization of Iris's generic [wp_bind] to the
       [LanguageCtx] instance of [fill] — the key to modular specs of
