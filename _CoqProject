@@ -9,5 +9,6 @@ theories/lang/machine.v
 theories/lang/tests.v
 theories/logic/inst.v
 theories/logic/lifting.v
+theories/logic/step_rules.v
 theories/logic/adequacy.v
 theories/examples/counter.v
