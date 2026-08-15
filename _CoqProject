@@ -19,3 +19,4 @@ theories/examples/counter.v
 theories/examples/counter_modular.v
 theories/examples/selfcounter.v
 theories/examples/pure_counter.v
+theories/examples/parent_child.v
