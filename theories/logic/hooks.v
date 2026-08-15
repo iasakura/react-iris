@@ -243,21 +243,22 @@ Section hooks.
     by iApply ("Hwp" with "Hr Ho").
   Qed.
 
-  (** Succ phase with a pure, int-preserving queue on slot 0: prints
-      "Counter", folds the queue, prints "Return", returns the view spec
-      with the folded value. *)
+  (** Succ phase with a pure, int-preserving queue on slot 0 (the
+      argument [nx] is only read by the ignored initial-value expression):
+      prints "Counter", folds the queue, prints "Return", returns the view
+      spec with the folded value. *)
   Definition is_int (v : domains.val) : Prop := ∃ n : Z, v = VConst (CInt n).
 
-  Lemma counter_body_succ (n : Z) q fs p π ω ks Φ :
+  Lemma counter_body_succ (nx n : Z) q fs p π ω ks Φ :
     vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
     queue_pure is_int q fs -∗
     render_ctx p π -∗ out_frag ω -∗
     (∀ n', ⌜fold_upd fs (VConst (CInt n)) = VConst (CInt n')⌝ -∗
      render_ctx p (commit_slot π 0 (VConst (CInt n)) (VConst (CInt n'))) -∗
      out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
-     WP ((FVal (VList [VConst (CInt n'); counter_handler p n' n]), ks)
+     WP ((FVal (VList [VConst (CInt n'); counter_handler p n' nx]), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
-    WP ((FExpr PSucc [("x", VConst (CInt n))] counter_body, ks)
+    WP ((FExpr PSucc [("x", VConst (CInt nx))] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (Hl) "#Hq Hr Ho Hwp".
@@ -282,26 +283,23 @@ Section hooks.
       and turns on Check — the machine content of "the callback is a
       transition (+2) of the abstract state", to be lifted to a ghost
       model in the component layer. *)
-  Lemma counter_handler_spec (n : Z) p π ent m ks Φ :
+  Lemma counter_handler_spec (ns nx : Z) p π ent m ks Φ :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
-    (let cl1 := VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))
-                  (env_insert "_" (VConst CUnit)
-                     (env_insert "setS" (VSetter 0 p)
-                        (env_insert "s" (VConst (CInt n)) [("x", VConst (CInt n))]))) in
+    (let henv := env_insert "_" (VConst CUnit)
+                   (env_insert "setS" (VSetter 0 p)
+                      (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])) in
+     let cl1 := VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1))) henv in
      let cl2 := VClos "s" (ESeq (EPrint (EConst (CString "Update")))
-                             (EBop BPlus (EVar "s") (EConst (CInt 1))))
-                  (env_insert "_" (VConst CUnit)
-                     (env_insert "setS" (VSetter 0 p)
-                        (env_insert "s" (VConst (CInt n)) [("x", VConst (CInt n))]))) in
+                             (EBop BPlus (EVar "s") (EConst (CInt 1)))) henv in
      let π' := π <| vw_dec ::= dec_add_check |>
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [cl1; cl2]) |>) |> in
      mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
                           (env_insert "setS" (VSetter 0 p)
-                             (env_insert "s" (VConst (CInt n)) [("x", VConst (CInt n))])))
+                             (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])))
            (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
                  (EApp (EVar "setS")
                     (EFun "s" (ESeq (EPrint (EConst (CString "Update")))

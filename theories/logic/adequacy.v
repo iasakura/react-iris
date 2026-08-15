@@ -65,3 +65,49 @@ Proof.
   iFrame "Hsi".
   by iApply Hwp.
 Qed.
+
+(** ** Adequacy with the final physical state
+
+    Postconditions may pin the final memory and output through ownership
+    ([mem_auth_frag] / [out_frag]); this variant transports them to a
+    pure statement about the terminal machine state. *)
+Theorem react_adequacy_state Σ `{!reactGpreS Σ} (δ : def_table) (c : mcfg)
+    (φ : mval → tree_mem → out_buf → Prop) :
+  (∀ (HI : invGS Σ) (HR : reactGS Σ),
+     own_cfg c ⊢ WP (cfg_expr c : expr (reactLang δ))
+                   {{ w, ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗ ⌜φ w m ω⌝ }}) →
+  adequate NotStuck (cfg_expr c : expr (reactLang δ)) (cfg_state c)
+    (λ w σ, φ w (ls_mem σ) (ls_out σ)).
+Proof.
+  intros Hwp. apply adequate_alt. intros t2 σ2 Hsteps.
+  apply erased_steps_nsteps in Hsteps as (n & κs & Hsteps).
+  eapply (wp_strong_adequacy Σ (reactLang δ) NotStuck [cfg_expr c]
+            (cfg_state c) n κs t2 σ2 _ (λ _, 0%nat)); last exact Hsteps.
+  intros Hinv.
+  iMod (react_alloc c) as (HR) "[Hsi Hown]".
+  iModIntro.
+  iExists (λ σ _ _ _, state_res σ),
+    [(λ w, ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗ ⌜φ w m ω⌝)%I],
+    (λ _, True%I), (λ σ ns κs0 nt, fupd_intro ∅ (state_res σ)).
+  iFrame "Hsi".
+  iSplitL "Hown".
+  { iSplitL; last done. by iApply Hwp. }
+  iIntros (es' t2' Hes Hlen Hns) "Hsi Hpost _".
+  destruct es' as [|e' es'']; first done.
+  destruct es'' as [|]; last done.
+  iDestruct "Hpost" as "[Hpost _]".
+  iApply fupd_mask_intro; [set_solver|]. iIntros "_".
+  destruct (to_val e') as [w|] eqn:Hval.
+  - (* the main thread is a value: read the memory and output off the
+       state interpretation through the postcondition's ownership *)
+    iDestruct "Hpost" as (m ω) "(Hm & Ho & %Hφ)".
+    iDestruct "Hsi" as "(Hmsi & _ & Hosi)".
+    iDestruct (ghost_map_auth_agree with "Hmsi Hm") as %<-.
+    iDestruct (ghost_var_agree with "Hosi Ho") as %<-.
+    iPureIntro. split; last done.
+    intros v2 t2'' Ht2. simpl in Hes. subst t2. simplify_eq.
+    rewrite to_of_val in Hval. by simplify_eq.
+  - iPureIntro. split; last done.
+    intros v2 t2'' Ht2. simpl in Hes. subst t2. simplify_eq.
+    by rewrite to_of_val in Hval.
+Qed.
