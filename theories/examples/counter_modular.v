@@ -10,12 +10,21 @@
     same conclusion by executing the machine ([wp_mrun_ok]). *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains interp machine tests.
-From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
+From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy component.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
 From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
+
+(** The abstract LTS refined by Counter. *)
+Definition counter_lts : root_spec := {|
+  rs_A := Z;
+  rs_init a := a = 0%Z;
+  rs_valid a i := i = 0%nat;
+  rs_step a i a' := a' = (a + 2)%Z;
+  rs_disp a := DList [DConst (CInt a); DHandler];
+|}.
 
 Section counter_modular.
   Context `{!invGS Σ, !reactGS Σ}.
@@ -275,7 +284,58 @@ Section counter_modular.
     iExists m, _. iFrame. iPureIntro. exists t. split_and!; [done| |done].
     rewrite Hd. by do 5 f_equal.
   Qed.
+
+  (** ** Counter as a refinement of an abstract LTS (component.v)
+
+      Abstract states: integers; the only event is the click (index 0),
+      which adds 2; the display shows the state. The three obligations are
+      exactly [counter_mount], [counter_click_step], and [display_Π]. *)
+  Definition counter_Inv (a : Z) (m : tree_mem) (ω : out_buf) : iProp Σ :=
+    ⌜m = <[0 := Π a]> ∅⌝ ∗ I a ω.
+
+  Lemma counter_root_obligations :
+    ⊢ root_obligations δ counter_prog counter_lts counter_Inv.
+  Proof.
+    iSplit; [|iSplit].
+    - iIntros "!>" (evs Φ) "Hown Hk".
+      iApply (counter_mount with "Hown"). iIntros "HI".
+      iApply ("Hk" $! 0 with "[//] [HI]"). by iFrame.
+    - iIntros "!>" (a m ω i evs ks Φ Hi) "[%Hm HI] Hk". simpl in Hi; subst i.
+      iApply (counter_click_step with "HI"). iIntros "HI".
+      iApply ("Hk" $! (a + 1 + 1)%Z with "[%] [HI]"); [simpl; lia|by iFrame].
+    - iIntros "!>" (a m ω) "[%Hm (Hm & _ & _ & Ho)]". subst m.
+      iFrame. iPureIntro. apply display_Π.
+  Qed.
 End counter_modular.
+
+(** All-zero traces are admissible. *)
+Lemma counter_admissible (evs : list nat) (a : Z) :
+  Forall (λ i, i = 0%nat) evs → rs_admissible counter_lts a evs.
+Proof.
+  revert a. induction evs as [|i evs IH]; intros a Hall; first constructor.
+  inversion Hall; subst. constructor; first done.
+  intros a' _. by apply IH.
+Qed.
+
+(** Counter refines its abstract LTS: for every click trace, the machine
+    never gets stuck, and any reached value is quiescent in a reachable
+    abstract state [a'] (here: [2·|evs|]) whose display is shown. *)
+Corollary counter_root_adequate (evs : list nat) :
+  Forall (λ i, i = 0%nat) evs →
+  adequate NotStuck
+    (cfg_expr (machine_init_cfg counter_prog evs)
+       : expr (reactLang (prog_def_table counter_prog)))
+    (cfg_state (machine_init_cfg counter_prog evs))
+    (λ w σ, ∃ a0 a', rs_init counter_lts a0 ∧ rs_reach counter_lts a0 evs a' ∧
+                     w = MIdle (TPath 0) ∧
+                     display_t 1000 (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
+Proof.
+  intros Hall.
+  apply (root_adequacy reactΣ counter_prog counter_lts
+           (λ _ HR, @counter_Inv reactΣ HR)).
+  { intros a _. by apply counter_admissible. }
+  intros HI HR. apply counter_root_obligations.
+Qed.
 
 (** The top-level theorem, with no Iris in the statement: for every click
     trace, the machine never gets stuck (no Rules-of-React violation), and

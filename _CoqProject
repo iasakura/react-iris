@@ -15,6 +15,7 @@ theories/logic/hooks.v
 theories/logic/runtime.v
 theories/logic/model.v
 theories/logic/adequacy.v
+theories/logic/component.v
 theories/examples/counter.v
 theories/examples/counter_modular.v
 theories/examples/selfcounter.v
