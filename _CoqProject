@@ -12,5 +12,7 @@ theories/logic/lifting.v
 theories/logic/step_rules.v
 theories/logic/runtime_rules.v
 theories/logic/hooks.v
+theories/logic/runtime.v
 theories/logic/adequacy.v
 theories/examples/counter.v
+theories/examples/counter_modular.v
