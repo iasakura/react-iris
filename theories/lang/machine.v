@@ -24,11 +24,15 @@
     the memory at the end of each rule; no rule reads the parent's entry
     in between, so the final configurations agree.
 
-    The machine is deterministic by construction ([mstep] is a function);
-    user-input nondeterminism (STEPEVENT) lives outside, in the event
-    injection ([minject_event]). The quiescent focus [FIdle t] with an
-    empty stack is the machine's value — the Iris instance will take
-    exactly these as values, so WP specs speak about reaching quiescence.
+    The machine is deterministic by construction ([mstep] is a function).
+    User input enters as data, not as nondeterminism: the pending event
+    trace sits at the bottom of the stack as a [KEvents] frame, and a
+    quiescent focus dispatches the next index against the handlers of
+    the rendered tree (STEPEVENT for a fixed trace). Top-level theorems
+    quantify over the trace outside the logic, recovering the paper's
+    adversarial user, while a fixed trace keeps the whole multi-event
+    run a single execution — so ghost state flows through one WP. The
+    quiescent focus [FIdle t] with an empty stack is the machine's value.
 
     A machine is stuck iff no rule applies, which coincides with the
     interpreter's [Stuck] (Rules-of-React violations). *)
@@ -98,7 +102,14 @@ Inductive frame :=
   | KMainMounted                  (* root tree built: enter rendered mode *)
   | KPostCommit (t : tree)        (* STEPEFFECT done: check *)
   | KPostCheck (t : tree)         (* STEPCHECK done: re-render or idle *)
-  | KPostEvent (t : tree).        (* STEPEVENT done: check *)
+  | KPostEvent (t : tree)         (* STEPEVENT done: check *)
+  (* --- event driver ---
+     The pending user-input trace. A quiescent focus dispatches the next
+     index against the handlers of the rendered tree (STEPEVENT for a
+     fixed trace); with the trace exhausted the frame pops and the
+     machine reaches its value. Universally quantifying the trace
+     outside the logic recovers the adversarial user of Fig. 4. *)
+  | KEvents (evs : list nat).
 
 (** ** Configurations *)
 Record mcfg := MCfg {
@@ -117,6 +128,43 @@ Definition mcfg_value (c : mcfg) : option tree :=
   | FIdle t, [] => Some t
   | _, _ => None
   end.
+
+(** Handlers reachable in a rendered tree, in DFS order (the paper's
+    [handlers(m, t)], with a fixed order so events address handlers by
+    index). Structurally recursive on the tree; the fuel bounds only
+    path indirections, so [S (map_size m)] hops suffice on any acyclic
+    memory — a cycle (never reachable) surfaces as [Stuck]. Being total
+    per call lets event dispatch be a single machine step. *)
+Fixpoint handlers_h (hops : nat) (m : tree_mem) (t : tree)
+    {struct hops} : res (list val) :=
+  match hops with
+  | O => Stuck "handlers: cyclic memory"
+  | S h =>
+      (fix go (t : tree) : res (list val) :=
+         match t with
+         | TConst _ => mret []
+         | TClos x e σ => mret [VClos x e σ]
+         | TList ts =>
+             (fix gol (ts : list tree) : res (list val) :=
+                match ts with
+                | [] => mret []
+                | t1 :: ts' =>
+                    hs1 ← go t1; hs2 ← gol ts'; mret (hs1 ++ hs2)
+                end) ts
+         | TPath p =>
+             match m !! p with
+             | Some π => handlers_h h m (vw_child π)
+             | None => Stuck "handlers: dangling path"
+             end
+         end) t
+  end.
+
+Definition handlers_of (m : tree_mem) (t : tree) : res (list val) :=
+  handlers_h (S (map_size m)) m t.
+
+(* Keep [handlers_of] opaque under simpl/cbn so that step-commutation
+   proofs can split on its result ([vm_compute] is unaffected). *)
+Global Arguments handlers_of : simpl never.
 
 Section machine.
   Context (δ : def_table).
@@ -627,8 +675,25 @@ Section machine.
             end
         end
 
-    (* ---------- quiescent ---------- *)
-    | FIdle _ => Stuck "quiescent: waiting for an event"
+    (* ---------- quiescent: event driver ---------- *)
+    | FIdle t =>
+        match mc_stack c with
+        | KEvents [] :: ks =>
+            (* trace exhausted: pop; with an empty stack this reaches
+               the machine's value *)
+            mret (c <| mc_stack := ks |>)
+        | KEvents (i :: evs) :: ks =>
+            (* STEPEVENT: dispatch the i-th handler of the rendered tree *)
+            hs ← handlers_of (mc_mem c) t;
+            match hs !! i with
+            | Some (VClos x e σ) =>
+                mret (c <| mc_focus :=
+                             FExpr PNormal (env_insert x (VConst CUnit) σ) e |>
+                        <| mc_stack := KPostEvent t :: KEvents evs :: ks |>)
+            | _ => Stuck "event: no such handler"
+            end
+        | _ => Stuck "quiescent: waiting for an event"
+        end
     end.
 
   (** Run until quiescent (or stuck / out of fuel). *)
@@ -642,41 +707,19 @@ Section machine.
         end
     end.
 
-  (** STEPEVENT: inject the [i]-th handler of the quiescent tree. *)
-  Definition minject_event (fuel : nat) (i : nat) (c : mcfg) : res mcfg :=
-    match mcfg_value c with
-    | Some t =>
-        hs ← handlers_t fuel (mc_mem c) t;
-        match hs !! i with
-        | Some (VClos x e σ) =>
-            mret (c <| mc_focus :=
-                        FExpr PNormal (env_insert x (VConst CUnit) σ) e |>
-                    <| mc_stack := [KPostEvent t] |>)
-        | _ => Stuck "event: no such handler"
-        end
-    | None => Stuck "event: not quiescent"
-    end.
-
-  Fixpoint mrun_events (fuel : nat) (c : mcfg) (evs : list nat) : res mcfg :=
-    match evs with
-    | [] => mret c
-    | i :: evs' =>
-        c1 ← minject_event fuel i c;
-        c2 ← mrun fuel c1;
-        mrun_events fuel c2 evs'
-    end.
-
 End machine.
 
-(** ** Top-level runner (mirrors [run_prog]) *)
-Definition machine_init_cfg (P : prog) : mcfg :=
-  MCfg (FExpr PNormal [] (p_main P)) [KMainInit] ∅ None [].
+(** ** Top-level runner (mirrors [run_prog])
+
+    The whole run — mount plus the entire event trace — is one
+    deterministic machine execution: the trace sits at the bottom of the
+    stack as a [KEvents] frame. *)
+Definition machine_init_cfg (P : prog) (evs : list nat) : mcfg :=
+  MCfg (FExpr PNormal [] (p_main P)) [KMainInit; KEvents evs] ∅ None [].
 
 Definition machine_run_prog (fuel : nat) (P : prog) (evs : list nat)
     : res mcfg :=
-  let δ := prog_def_table P in
-  c ← mrun δ fuel (machine_init_cfg P);
-  mrun_events δ fuel c evs.
+  mrun (prog_def_table P) fuel (machine_init_cfg P evs).
 
 (** Machine and interpreter results projected to comparable data:
     quiescent tree, memory, and output. *)

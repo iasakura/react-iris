@@ -86,6 +86,11 @@ Proof. vm_compute. reflexivity. Qed.
 Example counter_click_mode : run_mode counter_prog [0%nat] = Ok MEvent.
 Proof. vm_compute. reflexivity. Qed.
 
+(** Two clicks: the updates accumulate across events (s = 4). *)
+Example counter_two_clicks_state :
+  run_state counter_prog [0; 0]%nat 0 0 = Ok (Some (vint 4)).
+Proof. vm_compute. reflexivity. Qed.
+
 (** ** SelfCounter (§2.2): an Effect creating an autonomous render cycle
 
 <<
@@ -265,6 +270,13 @@ Proof. vm_compute. reflexivity. Qed.
 Example agree_counter_click :
   machine_result MFUEL counter_prog [0%nat]
     = interp_result FUEL counter_prog [0%nat].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Multi-event: the machine's event driver (one execution over the
+    whole trace) agrees with the interpreter's per-event loop. *)
+Example agree_counter_two_clicks :
+  machine_result MFUEL counter_prog [0; 0]%nat
+    = interp_result FUEL counter_prog [0; 0]%nat.
 Proof. vm_compute. reflexivity. Qed.
 
 Example agree_selfcounter :

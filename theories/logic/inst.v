@@ -16,9 +16,11 @@
 
     Steps are the graph of the deterministic [mstep]; a [Stuck] result of
     [mstep] is precisely irreducibility, so Iris safety ("not stuck")
-    coincides with the absence of Rules-of-React violations. Event
-    injection (STEPEVENT) is not a language step — values do not reduce —
-    and is composed at the meta level, one event per WP. *)
+    coincides with the absence of Rules-of-React violations. User input
+    is data: a [KEvents] frame carries the pending trace and quiescent
+    foci dispatch against it, so a whole multi-event run is one
+    execution; top-level theorems quantify over traces outside the
+    logic. *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains interp machine.
 From iris.program_logic Require Import language.
@@ -132,12 +134,16 @@ Section lang.
     mstep δ (app_cfg K c) = app_cfg K <$> mstep δ c.
   Proof.
     destruct c as [f ks m r o]. intros Hnv.
+    (* per case: reduce, split on matches, and split on the results of
+       opaque helpers ([≫=] on view_enqueue / operators / handlers) *)
     destruct f, ks; try done; cbn;
-      repeat (case_match; simplify_eq/=; try done).
-    (* residual [≫=] on opaque helpers: split on their result *)
-    all: by first [ destruct (view_enqueue _ _ _)
-                  | destruct (un_op_eval _ _)
-                  | destruct (bin_op_eval _ _ _) ].
+      repeat first [ progress (simplify_eq/=)
+                   | case_match
+                   | destruct (view_enqueue _ _ _)
+                   | destruct (un_op_eval _ _)
+                   | destruct (bin_op_eval _ _ _)
+                   | destruct (handlers_of _ _) ];
+      done.
   Qed.
 
   Global Instance fill_ctx K : LanguageCtx (Λ := reactLang) (fill K).
