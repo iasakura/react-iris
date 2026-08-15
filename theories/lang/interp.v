@@ -85,6 +85,23 @@ Definition bin_op_eval (op : bin_op) (v1 v2 : val) : res val :=
 Definition fresh_path (m : tree_mem) : path :=
   map_fold (λ (p : path) (_ : view) (acc : path), S p `max` acc) 0%nat m.
 
+Lemma fresh_path_spec (m : tree_mem) (p : path) (π : view) :
+  m !! p = Some π → (p < fresh_path m)%nat.
+Proof.
+  revert p π. unfold fresh_path.
+  apply (map_fold_weak_ind
+           (λ acc mm, ∀ p π, mm !! p = Some π → (p < acc)%nat)).
+  - intros p π ?. by simplify_map_eq.
+  - intros i x mm r Hi IH p π. rewrite lookup_insert_Some.
+    intros [[-> ->]|[Hne Hp]]; [lia|]. specialize (IH _ _ Hp). lia.
+Qed.
+
+Lemma fresh_path_fresh (m : tree_mem) : m !! fresh_path m = None.
+Proof.
+  destruct (m !! fresh_path m) as [π|] eqn:Hl; last done.
+  pose proof (fresh_path_spec _ _ _ Hl). lia.
+Qed.
+
 (** Enqueue an update closure and set the Check decision on a view
     (the common effect of APPSETCOMP / APPSETNORMAL). *)
 Definition view_enqueue (l : label) (cl : val) (π : view) : res view :=
@@ -308,7 +325,7 @@ Section interp.
                end) ss m ≫= λ '(ts, m', ω), mret (TList ts, m', ω)
         | VCompSpec C v =>                                       (* INITCOM *)
             let p := fresh_path m in
-            let π0 := View C v dec_empty ∅ [] (TConst CUnit) in
+            let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) in
             '(s', π, ω) ← eval_body n PInit p π0 v;
             '(t, m', ω') ← init_vs n s' (<[p := π]> m);
             let πf := π <| vw_dec := Decisions false true |> <| vw_child := t |> in
