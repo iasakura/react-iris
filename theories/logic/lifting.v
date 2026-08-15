@@ -75,7 +75,7 @@ Section wp_run.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
-  Local Lemma mem_auth_halves_join m :
+  Lemma mem_auth_halves_join m :
     mem_auth_frag m -∗ mem_auth_frag m -∗
     ghost_map_auth react_mem_name 1 m.
   Proof.
@@ -87,7 +87,7 @@ Section wp_run.
     by iEval (rewrite Qp.half_half) in "H".
   Qed.
 
-  Local Lemma mem_auth_halves_split m :
+  Lemma mem_auth_halves_split m :
     ghost_map_auth react_mem_name 1 m -∗
     mem_auth_frag m ∗ mem_auth_frag m.
   Proof.
