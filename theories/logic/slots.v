@@ -16,15 +16,15 @@
       ghost variable holds [fold fs (committed value)].
 
     Rules:
-    - [slot_alloc]: mounting a hook allocates the ghost pair;
+    - [slot_alloc]: mounting a hook allocates a model;
     - [wp_setter_normal_slot]: a setter call with a pure updater [f]
       takes [latest_state γ a] to [latest_state γ (f a)] — the abstract
       transition — while enqueuing [f] physically;
     - [wp_usestate_succ_slot]: on re-render the hook binds exactly the
       logical value [a], commits it, flushes the queue, and the logical
-      value is unchanged (rendering never changes the logical state);
-      the Effect decision appears iff [a] differs from the previously
-      committed value.
+      value is unchanged (rendering never changes the logical state); the Effect
+      decision appears iff [a] differs from the previously committed
+      value.
 
     The purity obligation ([upd_pure]) is exactly what makes the fold —
     and hence [latest_state] — well defined; an impure updater (e.g. the
@@ -50,8 +50,7 @@ Section slots.
     ∃ fs, ⌜D (st_val ent)⌝ ∗ queue_pure δ D (st_queue ent) fs ∗
           ghost_var γ (1/2) (fold_upd fs (st_val ent)).
 
-  Lemma fold_upd_app (fs1 fs2 : list (domains.val → domains.val))
-      (v : domains.val) :
+  Lemma fold_upd_app fs1 fs2 v :
     fold_upd (fs1 ++ fs2) v = fold_upd fs2 (fold_upd fs1 v).
   Proof. revert v. induction fs1; intros; simpl; auto. Qed.
 
@@ -79,9 +78,7 @@ Section slots.
   Qed.
 
   (** Enqueuing a pure updater advances the logical value. *)
-  Lemma slot_enqueue (D : domains.val → Prop) (γ : gname)
-      (a : domains.val) (ent : st_entry) (cl : domains.val)
-      (f : domains.val → domains.val) :
+  Lemma slot_enqueue D γ a ent cl f :
     (∀ v, D v → D (f v)) →
     upd_pure δ D cl f -∗ latest_state γ a -∗ slot_res D γ ent ==∗
     latest_state γ (f a) ∗ slot_res D γ (ent <| st_queue ::= (λ q, q ++ [cl]) |>).
@@ -126,15 +123,15 @@ Section slots.
 
   (** ** useState on re-render, in slot form (STTREBIND) *)
   Lemma wp_usestate_succ_slot (D : domains.val → Prop) (γ : gname)
-      (a : domains.val) (l : label) (x xset : var) (e1 e2 : syntax.expr)
+      (a : domains.val) (x xset : var) (e1 e2 : syntax.expr)
       (σb : env) (p : path) (π : domains.view) (ent : st_entry)
       (ks : list machine.frame) Φ :
-    vw_sttst π !! l = Some ent →
+    vw_sttst π !! vw_cur π = Some ent →
     latest_state γ a -∗ slot_res D γ ent -∗
     render_ctx p π -∗
     (latest_state γ a -∗ slot_res D γ (StEntry a []) -∗
-     render_ctx p (commit_slot π l (st_val ent) a) -∗
-     WP ((FExpr PSucc (env_insert xset (VSetter l p) (env_insert x a σb)) e2, ks)
+     render_ctx p (commit_slot π (vw_cur π) (st_val ent) a) -∗
+     WP ((FExpr PSucc (env_insert xset (VSetter (vw_cur π) p) (env_insert x a σb)) e2, ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState l x xset e1 e2), ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -152,15 +149,16 @@ Section slots.
 
   (** ** useState on mount, in slot form (STTBIND) *)
   Lemma wp_usestate_mount_slot (D : domains.val → Prop) (v : domains.val)
-      (σb : env) (l : label) (x xset : var) (e2 : syntax.expr) (p : path)
+      (σb : env) (x xset : var) (e2 : syntax.expr) (p : path)
       (π : domains.view) (ks : list machine.frame) Φ :
     D v →
     render_ctx p π -∗
     ▷ (∀ γ, latest_state γ v -∗ slot_res D γ (StEntry v []) -∗
-       render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |>) -∗
-       WP ((FExpr PInit (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
+       render_ctx p (π <| vw_sttst ::= insert (vw_cur π) (StEntry v []) |>
+                       <| vw_cur := S (vw_cur π) |>) -∗
+       WP ((FExpr PInit (env_insert xset (VSetter (vw_cur π) p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
-    WP ((FVal v, KUseState σb l x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
+    WP ((FVal v, KUseState σb x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (HD) "Hr Hwp".
     iMod (slot_alloc D v HD) as (γ) "[Hm Hs]".

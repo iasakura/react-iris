@@ -89,7 +89,8 @@ Section counter_modular.
       (TList [TConst (CInt n);
               TClos "_" hbody
                 (env_insert "setS" (VSetter 0 0)
-                   (env_insert "s" (cint n) [("x", cint 0)]))]).
+                   (env_insert "s" (cint n) [("x", cint 0)]))])
+      1.
 
   (** The invariant across events: [Π n] in memory, output [ω]. *)
   Local Definition I (n : Z) (ω : out_buf) : iProp Σ :=
@@ -100,7 +101,7 @@ Section counter_modular.
   Local Definition ω_click : out_buf :=
     [VConst (CString "Counter"); VConst (CString "Update"); VConst (CString "Return")].
 
-  Lemma display_Π (n : Z) :
+  Lemma display_Π n :
     display_t 1000 (<[0 := Π n]> ∅) (TPath 0)
       = Ok (DList [DConst (CInt n); DHandler]).
   Proof. by vm_compute. Qed.
@@ -109,17 +110,18 @@ Section counter_modular.
 
   (** Init phase: prints "Counter", allocates slot 0 with the argument,
       prints "Return", and returns the view spec [[n; handler]]. *)
-  Lemma counter_body_init (n : Z) (p : path) (π : domains.view)
-      (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma counter_body_init (n : Z) p π ω ks Φ :
+    vw_cur π = 0 →
     render_ctx p π -∗ out_frag ω -∗
-    (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>) -∗
+    (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>
+                     <| vw_cur := 1 |>) -∗
      out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
      WP ((FVal (VList [VConst (CInt n); counter_handler p n n]), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit [("x", VConst (CInt n))] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros "Hr Ho Hwp".
+    iIntros (Hcur) "Hr Ho Hwp".
     rewrite /counter_body.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
@@ -127,6 +129,7 @@ Section counter_modular.
     iApply (wp_usestate_init with "Hr"). iNext. iIntros "Hr".
     wp_pure.
     iApply (wp_usestate_mount with "Hr"). iNext. iIntros "Hr".
+    rewrite Hcur.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     do 6 wp_pure.
@@ -139,9 +142,8 @@ Section counter_modular.
       prints "Counter", folds the queue, prints "Return", returns the view
       spec with the folded value. *)
 
-  Lemma counter_body_succ (nx n : Z) (q : list domains.val)
-      (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
-      (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma counter_body_succ (nx n : Z) q fs p π ω ks Φ :
+    vw_cur π = 0 →
     vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
     queue_pure δ is_int q fs -∗
     render_ctx p π -∗ out_frag ω -∗
@@ -153,7 +155,7 @@ Section counter_modular.
     WP ((FExpr PSucc [("x", VConst (CInt nx))] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "#Hq Hr Ho Hwp".
+    iIntros (Hcur Hl) "#Hq Hr Ho Hwp".
     iPoseProof "Hq" as "[%Hdom _]".
     pose proof (fold_upd_dom is_int fs (VConst (CInt n)) Hdom (ex_intro _ n eq_refl))
       as [n' Hn'].
@@ -161,8 +163,8 @@ Section counter_modular.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     wp_pure.
-    iApply (wp_usestate_succ_pure with "Hq Hr"); [done|by exists n|].
-    iIntros "Hr". rewrite Hn'.
+    iApply (wp_usestate_succ_pure with "Hq Hr"); [by rewrite Hcur|by exists n|].
+    iIntros "Hr". rewrite Hn' Hcur.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     do 6 wp_pure.
@@ -175,9 +177,7 @@ Section counter_modular.
       and turns on Check — the machine content of "the callback is a
       transition (+2) of the abstract state", to be lifted to a ghost
       ghost slot in the component layer. *)
-  Lemma counter_handler_spec (ns nx : Z) (p : path) (π : domains.view)
-      (ent : st_entry) (m : tree_mem) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma counter_handler_spec (ns nx : Z) p π ent m ks Φ :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
@@ -215,9 +215,8 @@ Section counter_modular.
       "Counter", then the fold — the second updater prints "Update"
       during the render (the update-timing observation of §2.1) — then
       "Return"; the state advances by 2 and the Effect decision is on. *)
-  Lemma counter_body_succ_click (narg n ns nx : Z) (p : path)
-      (π : domains.view) (ω : out_buf) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma counter_body_succ_click (narg n ns nx : Z) p π ω ks Φ :
+    vw_cur π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint n) [cl1 p ns nx; cl2 p ns nx]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (commit_slot π 0 (cint n) (cint (n + 1 + 1))) -∗
@@ -228,12 +227,13 @@ Section counter_modular.
     WP ((FExpr PSucc [("x", cint narg)] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "Hr Ho Hwp".
+    iIntros (Hcur Hl) "Hr Ho Hwp".
     rewrite /counter_body.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     wp_pure.
-    iApply (wp_usestate_succ_cons with "Hr"); first done. iNext. iIntros "Hr".
+    iApply (wp_usestate_succ_cons with "Hr"); first by rewrite Hcur. iNext. iIntros "Hr".
+    rewrite Hcur.
     do 5 wp_pure.
     iApply (wp_sttfold_cons with "Hr"). iNext. iIntros "Hr".
     do 3 wp_pure.
@@ -250,7 +250,7 @@ Section counter_modular.
   (** ** The runs *)
 
   (** *** Mount: from the initial configuration to the quiescent [I 0] *)
-  Lemma counter_mount (evs : list nat) (Φ : mval → iProp Σ) :
+  Lemma counter_mount evs Φ :
     own_cfg (machine_init_cfg counter_prog evs) -∗
     (I 0 ω_mount -∗
      WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -265,16 +265,16 @@ Section counter_modular.
     (* main expression: Counter 0 evaluates to ⟨Counter, 0⟩; STEPINIT *)
     do 6 wp_pure.
     (* INITCOM with the Init-phase body spec *)
-    set (π1 := enter_view (MkView "Counter" (cint 0) dec_empty ∅ [] (TConst CUnit))
-                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |>).
+    set (π1 := enter_view (MkView "Counter" (cint 0) dec_empty ∅ [] (TConst CUnit) 0)
+                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_cur := 1 |>).
     set (s1 := VList [cint 0; counter_handler (fresh_path ∅) 0 0]).
     iApply (wp_init_component _ _ _ _ _ _
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = s1⌝ ∗ out_frag ω_mount)%I) with "[Ho] Hm Hr").
     { done. }
     { iIntros (ks Φ') "Hr Hk'".
-      iApply (counter_body_init 0 with "Hr Ho").
+      iApply (counter_body_init 0 with "Hr Ho"); first done.
       iIntros "Hr Ho".
-      iApply ("Hk'" $! s1 π1 with "[//] Hr [Ho]"). by iFrame. }
+      iApply ("Hk'" $! s1 π1 with "[%] Hr [Ho]"); [split; by vm_compute|by iFrame]. }
     iIntros (s π' _) "Hm Hp Hr (-> & -> & Ho)".
     iEval (change (fresh_path ∅) with 0%nat) in "Hm Hp".
     iEval (change (fresh_path ∅) with 0%nat).
@@ -305,8 +305,7 @@ Section counter_modular.
   Qed.
 
   (** *** One click: [I n] to [I (n+1+1)] *)
-  Lemma counter_click_step (n : Z) (ω : out_buf) (evs : list nat)
-      (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma counter_click_step (n : Z) ω evs ks Φ :
     I n ω -∗
     (I (n + 1 + 1) (ω ++ ω_click) -∗
      WP ((FIdle (TPath 0), KEvents evs :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -329,7 +328,8 @@ Section counter_modular.
     (* re-render: CHECK with the Succ-phase body spec *)
     wp_pure.
     set (π5 := enter_view π4 <| vw_dec ::= dec_add_effect |>
-                 <| vw_sttst ::= <[0:=StEntry (cint (n + 1 + 1)) []]> |>).
+                 <| vw_sttst ::= <[0:=StEntry (cint (n + 1 + 1)) []]> |>
+                 <| vw_cur := 1 |>).
     set (s5 := VList [cint (n + 1 + 1); counter_handler 0 (n + 1 + 1) 0]).
     iApply (wp_check_component _ 0 π4 "x" counter_body _
               (λ π' s, (⌜π' = π5⌝ ∗ ⌜s = s5⌝ ∗ out_frag (ω ++ ω_click))%I)
@@ -340,8 +340,9 @@ Section counter_modular.
     { iIntros (ks' Φ') "Hr Hk'".
       iApply (counter_body_succ_click 0 n n 0 with "Hr Ho").
       { by vm_compute. }
+      { by vm_compute. }
       iIntros "Hr Ho".
-      iApply ("Hk'" $! s5 π5 with "[//] [Hr] [Ho]"); last by iFrame.
+      iApply ("Hk'" $! s5 π5 with "[%] [Hr] [Ho]"); [split; by vm_compute| |by iFrame].
       (* the folded value differs from the committed one: Effect *)
       rewrite /commit_slot /val_eqb bool_decide_eq_false_2 //.
       intros [=]. lia. }
@@ -378,7 +379,7 @@ Section counter_modular.
   Qed.
 
   (** *** Any click trace *)
-  Lemma counter_run (evs : list nat) (n : Z) (ω : out_buf) :
+  Lemma counter_run (evs : list nat) (n : Z) ω :
     Forall (λ i, i = 0%nat) evs →
     I n ω -∗
     WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ w,

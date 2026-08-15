@@ -68,7 +68,7 @@ Section selfcounter.
       [ΠF]: the final quiescent view. *)
   Local Definition ΠA (k : Z) : domains.view :=
     MkView "SelfCounter" (cint 0) (Decisions false true)
-      (<[0 := StEntry (cint k) []]> ∅) [eff 0 k] (TList [TConst (CInt k)]).
+      (<[0 := StEntry (cint k) []]> ∅) [eff 0 k] (TList [TConst (CInt k)]) 1.
   Local Definition ΠF : domains.view := ΠA 3 <| vw_dec ::= dec_rm_effect |>.
 
   (** [A k ω]: the machine is about to commit the pending effect
@@ -90,14 +90,14 @@ Section selfcounter.
   (** [λt. t+1] is a pure updater on integers — the obligation of
       [wp_usestate_succ_pure], discharged by symbolic execution with no
       state resources in hand. *)
-  Lemma upd_pure_inc (σ : env) :
+  Lemma upd_pure_inc σ :
     ⊢ upd_pure δ is_int (VClos "t" ("t" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
     do 5 wp_pure. by iApply "Hwp".
   Qed.
 
-  Lemma queue_pure_inc (p : path) (k : Z) :
+  Lemma queue_pure_inc p k :
     ⊢ queue_pure δ is_int [inc p k] [finc].
   Proof.
     iSplit.
@@ -109,20 +109,21 @@ Section selfcounter.
 
   (** Init phase (argument 0): allocates slot 0 at 0, prints 0, registers
       the effect thunk, prints "Return", returns the view spec [[0]]. *)
-  Lemma body_init (p : path) (π : domains.view) (ω : out_buf)
-      (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma body_init p π ω ks Φ :
+    vw_cur π = 0 →
     render_ctx p π -∗ out_frag ω -∗
-    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (cint 0) []]> |>
+    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (cint 0) []]> |> <| vw_cur := 1 |>
                      <| vw_effq ::= (λ q, q ++ [eff p 0]) |>) -∗
      out_frag (ω ++ [cint 0; VConst (CString "Return")]) -∗
      WP ((FVal (VList [cint 0]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit [("x", cint 0)] selfcounter_body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros "Hr Ho Hwp".
+    iIntros (Hcur) "Hr Ho Hwp".
     rewrite /selfcounter_body.
     iApply (wp_usestate_init with "Hr"). iNext. iIntros "Hr".
     wp_pure.
     iApply (wp_usestate_mount with "Hr"). iNext. iIntros "Hr".
+    rewrite Hcur.
     do 3 wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     do 2 wp_pure.
@@ -137,25 +138,26 @@ Section selfcounter.
   (** Succ phase at state [k] with the queued updater: folds to [k+1]
       (Effect on, since the value changed), prints it, registers the
       effect thunk at [k+1], prints "Return", returns [[k+1]]. *)
-  Lemma body_succ (k j : Z) (p : path) (π : domains.view) (ω : out_buf)
-      (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma body_succ (k j : Z) p π ω ks Φ :
+    vw_cur π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint k) [inc p j]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (π <| vw_dec ::= dec_add_effect |>
                      <| vw_sttst ::= <[0 := StEntry (cint (k + 1)) []]> |>
+                     <| vw_cur := 1 |>
                      <| vw_effq ::= (λ q, q ++ [eff p (k + 1)]) |>) -∗
      out_frag (ω ++ [cint (k + 1); VConst (CString "Return")]) -∗
      WP ((FVal (VList [cint (k + 1)]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc [("x", cint 0)] selfcounter_body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "Hr Ho Hwp".
+    iIntros (Hcur Hl) "Hr Ho Hwp".
     rewrite /selfcounter_body.
     iApply (wp_usestate_succ_pure _ is_int _ _ _ _ _ _ _ _ _ [inc p j] [finc]
               with "[] Hr").
-    { done. }
+    { by rewrite Hcur. }
     { by exists k. }
     { iApply queue_pure_inc. }
-    iIntros "Hr". cbn [fold_upd finc].
+    iIntros "Hr". cbn [fold_upd finc]. rewrite Hcur.
     (* the value changed: Effect *)
     iEval (rewrite /commit_slot /val_eqb bool_decide_eq_false_2;
            last (intros [=]; lia)) in "Hr".
@@ -174,9 +176,7 @@ Section selfcounter.
 
   (** At state [k < 3]: prints "Effect" and queues [λt. t+1] on slot 0
       of the view at [p], turning on Check. *)
-  Lemma effect_lt (k : Z) (p : path) (π : domains.view) (ent : st_entry)
-      (m : tree_mem) (ω : out_buf) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma effect_lt (k : Z) p π ent m ω ks Φ :
     (k < 3)%Z →
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
@@ -203,8 +203,7 @@ Section selfcounter.
   Qed.
 
   (** At state [k ≥ 3]: prints "Effect" and does nothing else. *)
-  Lemma effect_ge (k : Z) (p : path) (ω : out_buf)
-      (ks : list machine.frame) (Φ : mval → iProp Σ) :
+  Lemma effect_ge (k : Z) p ω ks Φ :
     (3 ≤ k)%Z →
     out_frag ω -∗
     (out_frag (ω ++ [VConst (CString "Effect")]) -∗
@@ -229,8 +228,7 @@ Section selfcounter.
       (Check), the re-render folds the state to [k+1] and registers a
       new effect (Effect), the child is reconciled — back to [A (k+1)],
       with the measure [3 − k] decreased. *)
-  Lemma cycle (k : Z) (ω : out_buf) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma cycle (k : Z) ω ks Φ :
     (k < 3)%Z →
     A k ω -∗
     (A (k + 1) (ω ++ ω_cycle k) -∗
@@ -273,6 +271,7 @@ Section selfcounter.
     wp_pure.
     set (π5 := enter_view ΠC <| vw_dec ::= dec_add_effect |>
                  <| vw_sttst ::= <[0 := StEntry (cint (k + 1)) []]> |>
+                 <| vw_cur := 1 |>
                  <| vw_effq ::= (λ q, q ++ [eff 0 (k + 1)]) |>).
     iApply (wp_check_component _ 0 ΠC "x" selfcounter_body _
               (λ π' s, (⌜π' = π5⌝ ∗ ⌜s = VList [cint (k + 1)]⌝ ∗
@@ -282,9 +281,11 @@ Section selfcounter.
     { done. }
     { iIntros (ks' Φ') "Hr Hk'".
       iApply (body_succ k k with "Hr Ho").
+      { done. }
       { subst ΠC ΠB. by vm_compute. }
       iIntros "Hr Ho".
-      iApply ("Hk'" $! (VList [cint (k + 1)]) π5 with "[//] Hr [Ho]").
+      iApply ("Hk'" $! (VList [cint (k + 1)]) π5 with "[%] Hr [Ho]");
+        first (subst π5 ΠC ΠB; split; by vm_compute).
       iSplit; first done. iSplit; first done.
       by iEval (rewrite /ω_cycle -app_assoc) in "Ho". }
     iIntros (s π' _) "Hm Hp Hr (-> & -> & Ho)".
@@ -304,8 +305,7 @@ Section selfcounter.
 
   (** The last round at [k = 3]: the effect runs (prints "Effect") but
       queues nothing; the check finds nothing to do; quiescence. *)
-  Lemma last_round (ω : out_buf) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma last_round ω ks Φ :
     A 3 ω -∗
     (mem_auth_frag (<[0 := ΠF]> ∅) -∗ out_frag (ω ++ [VConst (CString "Effect")]) -∗
      WP ((FIdle (TPath 0), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -340,7 +340,7 @@ Section selfcounter.
   Qed.
 
   (** ** Mount *)
-  Lemma mount (Φ : mval → iProp Σ) :
+  Lemma mount Φ :
     own_cfg (machine_init_cfg selfcounter_prog []) -∗
     (A 0 ω_mount -∗
      WP ((FCommit (TPath 0), [KPostCommit (TPath 0); KEvents []]) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -353,17 +353,18 @@ Section selfcounter.
     iEval (rewrite /machine_init_cfg /cfg_expr;
            cbn [mc_focus mc_stack mc_mem mc_reg mc_out fst snd p_main selfcounter_prog]).
     do 6 wp_pure.
-    set (π1 := enter_view (MkView "SelfCounter" (cint 0) dec_empty ∅ [] (TConst CUnit))
-                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |>
+    set (π1 := enter_view (MkView "SelfCounter" (cint 0) dec_empty ∅ [] (TConst CUnit) 0)
+                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_cur := 1 |>
                  <| vw_effq ::= (λ q, q ++ [eff (fresh_path ∅) 0]) |>).
     iApply (wp_init_component _ _ _ _ _ _
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = VList [cint 0]⌝ ∗ out_frag ω_mount)%I)
               with "[Ho] Hm Hr").
     { done. }
     { iIntros (ks Φ') "Hr Hk'".
-      iApply (body_init with "Hr Ho").
+      iApply (body_init with "Hr Ho"); first done.
       iIntros "Hr Ho".
-      iApply ("Hk'" $! (VList [cint 0]) π1 with "[//] Hr [Ho]"). by iFrame. }
+      iApply ("Hk'" $! (VList [cint 0]) π1 with "[%] Hr [Ho]");
+        [subst π1; split; by vm_compute|by iFrame]. }
     iIntros (s π' _) "Hm Hp Hr (-> & -> & Ho)".
     iEval (change (fresh_path ∅) with 0%nat) in "Hm Hp".
     iEval (change (fresh_path ∅) with 0%nat).

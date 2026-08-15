@@ -184,6 +184,20 @@ conformance check.
   restriction) is justified by an agreement lemma between the cursor and
   static versions, plus differential tests against react-trace.
 
+**Status.** Phase 3 is implemented: the view carries a hook cursor
+(`vw_cur`), reset on body entry; `useState` binds the slot at the cursor
+(the syntactic label is ignored) and advances it; on re-render a missing
+slot is stuck ("more hooks than in the previous render"), and settling
+with cursor ≠ slot count is stuck ("fewer hooks"). All paper examples and
+the machine/interpreter agreement are unchanged (labels 0, 1, … in call
+order coincide with cursors); new tests cover two hooks by call order and
+a custom hook (a function containing a hook). `logic/stuck.v` certifies
+non-safety by computation (`stuck_within_not_adequate`), and
+`examples/rules_of_hooks.v` proves `cond_not_adequate`: the paper's
+`Cond` admits no adequate postcondition, hence no WP proof — the concrete
+content of "WP ⇒ Rules of Hooks". Hiding a custom hook's slot count
+behind an abstract hook context (§5.3) is not yet done.
+
 ### D3: Divergence (infinite retry / infinite re-render)
 
 - The semantics stays **unbounded** as in the paper (divergence allowed).

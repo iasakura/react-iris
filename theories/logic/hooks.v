@@ -89,8 +89,7 @@ Section hooks.
       (v : domains.val) : domains.val :=
     match fs with [] => v | f :: fs' => fold_upd fs' (f v) end.
 
-  Lemma fold_upd_dom (D : domains.val → Prop)
-      (fs : list (domains.val → domains.val)) (v : domains.val) :
+  Lemma fold_upd_dom D fs v :
     Forall (λ f, ∀ v, D v → D (f v)) fs → D v → D (fold_upd fs v).
   Proof.
     revert v. induction fs as [|f fs IH]; intros v Hall Hv; first done.
@@ -101,18 +100,15 @@ Section hooks.
   Proof. by destruct π. Qed.
 
   (** The view after committing the folded value [vn] over [v0] at
-      label [l]. *)
+      slot [l] (and advancing the cursor past it). *)
   Definition commit_slot (π : domains.view) (l : label) (v0 vn : domains.val)
       : domains.view :=
     π <| vw_dec := (if val_eqb vn v0 then vw_dec π else dec_add_effect (vw_dec π)) |>
-      <| vw_sttst ::= insert l (StEntry vn []) |>.
+      <| vw_sttst ::= insert l (StEntry vn []) |>
+      <| vw_cur := S l |>.
 
   (** Folding a pure queue through the [KSttFold] frame. *)
-  Lemma wp_sttfold_pure (D : domains.val → Prop) (v : domains.val)
-      (σb : env) (l : label) (x xset : var) (e2 : syntax.expr)
-      (v0 : domains.val) (q : list domains.val)
-      (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
-      (ks : list machine.frame) Φ :
+  Lemma wp_sttfold_pure D v σb l x xset e2 v0 q fs p π ks Φ :
     D v →
     queue_pure D q fs -∗
     render_ctx p π -∗
@@ -142,29 +138,25 @@ Section hooks.
       expression is evaluated by the client through [wp_fill] on the
       [KUseState] frame; this rule covers the common case of an
       already-evaluated initial value. *)
-  Lemma wp_usestate_mount (v : domains.val) (σb : env) (l : label)
-      (x xset : var) (e2 : syntax.expr) (p : path) (π : domains.view)
-      (ks : list machine.frame) Φ :
+  Lemma wp_usestate_mount v σb x xset e2 p π ks Φ :
     render_ctx p π -∗
-    ▷ (render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |>) -∗
-       WP ((FExpr PInit (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
+    ▷ (render_ctx p (π <| vw_sttst ::= insert (vw_cur π) (StEntry v []) |>
+                       <| vw_cur := S (vw_cur π) |>) -∗
+       WP ((FExpr PInit (env_insert xset (VSetter (vw_cur π) p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
-    WP ((FVal v, KUseState σb l x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
+    WP ((FVal v, KUseState σb x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof. iApply wp_usestate_bind. Qed.
 
   (** STTREBIND (Succ) with a pure queue: the re-render sees the fold of
       the queued functions over the committed value; the queue is
       flushed; Effect iff the value changed. *)
-  Lemma wp_usestate_succ_pure (D : domains.val → Prop) (l : label)
-      (x xset : var) (e1 e2 : syntax.expr) (σb : env) (p : path)
-      (π : domains.view) (v0 : domains.val) (q : list domains.val)
-      (fs : list (domains.val → domains.val)) (ks : list machine.frame) Φ :
-    vw_sttst π !! l = Some (StEntry v0 q) →
+  Lemma wp_usestate_succ_pure D l x xset e1 e2 σb p π v0 q fs ks Φ :
+    vw_sttst π !! vw_cur π = Some (StEntry v0 q) →
     D v0 →
     queue_pure D q fs -∗
     render_ctx p π -∗
-    (render_ctx p (commit_slot π l v0 (fold_upd fs v0)) -∗
-     WP ((FExpr PSucc (env_insert xset (VSetter l p)
+    (render_ctx p (commit_slot π (vw_cur π) v0 (fold_upd fs v0)) -∗
+     WP ((FExpr PSucc (env_insert xset (VSetter (vw_cur π) p)
                         (env_insert x (fold_upd fs v0) σb)) e2, ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState l x xset e1 e2), ks)
@@ -188,9 +180,7 @@ Section hooks.
   Qed.
 
   (** ** Setter outside rendering (APPSETNORMAL) *)
-  Lemma wp_setter_normal (l : label) (p' : path) (π : domains.view)
-      (ent : st_entry) (xi : var) (ei : syntax.expr) (σi : env)
-      (m : tree_mem) (ks : list machine.frame) Φ :
+  Lemma wp_setter_normal l p' π ent xi ei σi m ks Φ :
     m !! p' = Some π →
     vw_sttst π !! l = Some ent →
     mem_auth_frag m -∗ view_ptsto p' π -∗ reg_token None -∗

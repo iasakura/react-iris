@@ -256,6 +256,85 @@ Proof. vm_compute. reflexivity. Qed.
 Example eff_cross_display : run_display eff_cross_prog [] = Ok (DConst CUnit).
 Proof. vm_compute. reflexivity. Qed.
 
+(** ** Cursor semantics (design decision D2)
+
+    Hooks are identified by their position among the hook calls of a
+    render, not by the syntactic label. *)
+
+(** [Cond] (§1 of the paper): a hook under a conditional. The first
+    render calls one hook; after the click the re-render calls a second
+    one, for which no slot exists — the machine is stuck ("Rules of
+    Hooks"). The program is rejected by [body_ok] syntactically; the
+    semantics catches the violation dynamically, which is what a "WP ⇒
+    Rules of Hooks" theorem builds on. *)
+Definition cond_body : expr :=
+  EUseState 0 "b" "setB" (EConst (CBool false))
+    (EIf (EVar "b")
+       (EUseState 1 "s" "setS" (intc 0) (EVar "s"))
+       (EFun "_" (EApp (EVar "setB") (EFun "b" (EUop UNot (EVar "b")))))).
+
+Definition cond_prog : prog :=
+  Prog [("Cond", CompDef "x" cond_body)] (EApp (ECompName "Cond") unit_e).
+
+Example cond_not_wf : comp_def_wf (CompDef "x" cond_body) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+Example cond_mounts : run_display cond_prog [] = Ok DHandler.
+Proof. vm_compute. reflexivity. Qed.
+
+Example cond_click_stuck :
+  run_prog FUEL cond_prog [0%nat]
+    = Stuck "Rules of Hooks: more hooks than in the previous render".
+Proof. vm_compute. reflexivity. Qed.
+
+(** Two hooks: slots by call order (0 then 1); the second setter updates
+    slot 1. Labels are ignored (here deliberately not in order). *)
+Definition two_body : expr :=
+  EUseState 7 "a" "setA" (intc 1)
+    (EUseState 3 "b" "setB" (intc 2)
+      (EView [EVar "a"; EVar "b";
+              EFun "_" (EApp (EVar "setB")
+                          (EFun "v" (EBop BPlus (EVar "v") (intc 10))))])).
+
+Definition two_prog : prog :=
+  Prog [("Two", CompDef "x" two_body)] (EApp (ECompName "Two") unit_e).
+
+Example two_slots :
+  run_state two_prog [0%nat] 0 0 = Ok (Some (vint 1)) ∧
+  run_state two_prog [0%nat] 0 1 = Ok (Some (vint 12)).
+Proof. vm_compute. auto. Qed.
+
+Example two_display :
+  run_display two_prog [0%nat]
+    = Ok (DList [DConst (CInt 1); DConst (CInt 12); DHandler]).
+Proof. vm_compute. reflexivity. Qed.
+
+(** A custom hook: a function containing a hook, called from the body.
+    Its hook takes slot 0; the component's own hook takes slot 1. *)
+Definition custom_body : expr :=
+  ELet "useDouble"
+    (EFun "init"
+       (EUseState 0 "c" "setC" (EVar "init")
+          (EBop BPlus (EVar "c") (EVar "c"))))
+    (ELet "d" (EApp (EVar "useDouble") (EVar "x"))
+      (EUseState 0 "s" "setS" (intc 0)
+        (EView [EVar "d"; EVar "s";
+                EFun "_" (EApp (EVar "setS")
+                            (EFun "v" (EBop BPlus (EVar "v") (intc 1))))]))).
+
+Definition custom_prog : prog :=
+  Prog [("Comp", CompDef "x" custom_body)] (EApp (ECompName "Comp") (intc 21)).
+
+Example custom_slots :
+  run_state custom_prog [0%nat] 0 0 = Ok (Some (vint 21)) ∧
+  run_state custom_prog [0%nat] 0 1 = Ok (Some (vint 1)).
+Proof. vm_compute. auto. Qed.
+
+Example custom_display :
+  run_display custom_prog [0; 0]%nat
+    = Ok (DList [DConst (CInt 42); DConst (CInt 2); DHandler]).
+Proof. vm_compute. reflexivity. Qed.
+
 (** ** Machine / interpreter cross-validation
 
     The small-step machine ([machine.v]) must produce exactly the same
@@ -310,4 +389,17 @@ Proof. vm_compute. reflexivity. Qed.
 Example agree_eff_cross :
   machine_result MFUEL eff_cross_prog []
     = interp_result FUEL eff_cross_prog [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_cond :
+  machine_result MFUEL cond_prog [0%nat] = interp_result FUEL cond_prog [0%nat].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_two :
+  machine_result MFUEL two_prog [0%nat] = interp_result FUEL two_prog [0%nat].
+Proof. vm_compute. reflexivity. Qed.
+
+Example agree_custom :
+  machine_result MFUEL custom_prog [0; 0]%nat
+    = interp_result FUEL custom_prog [0; 0]%nat.
 Proof. vm_compute. reflexivity. Qed.

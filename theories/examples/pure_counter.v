@@ -53,10 +53,10 @@ Section pure_counter.
 
   (** ** The updater is pure *)
 
-  Lemma finc_int (v : domains.val) : is_int v → is_int (finc v).
+  Lemma finc_int v : is_int v → is_int (finc v).
   Proof. intros [n ->]. by exists (n + 1)%Z. Qed.
 
-  Lemma upd_pure_inc (σ : env) :
+  Lemma upd_pure_inc σ :
     ⊢ upd_pure δ is_int (VClos "s" ("s" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
@@ -64,9 +64,7 @@ Section pure_counter.
   Qed.
 
   (** ** The callback as an abstract transition: +2 *)
-  Lemma click_spec (γ : gname) (n ns nx : Z) (p : path) (π : domains.view)
-      (ent : st_entry) (m : tree_mem) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma click_spec γ (n ns nx : Z) p π ent m ks Φ :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     latest_state γ (cint n) -∗ slot_res δ is_int γ ent -∗
@@ -95,9 +93,8 @@ Section pure_counter.
   Qed.
 
   (** ** The display as a function of the abstract state *)
-  Lemma body_succ_spec (γ : gname) (a : domains.val) (nx : Z) (p : path)
-      (π : domains.view) (ent : st_entry) (ks : list machine.frame)
-      (Φ : mval → iProp Σ) :
+  Lemma body_succ_spec γ (a : domains.val) (nx : Z) p π ent ks Φ :
+    vw_cur π = 0 →
     vw_sttst π !! 0 = Some ent →
     latest_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗
     (∀ n, ⌜a = cint n⌝ -∗
@@ -106,10 +103,10 @@ Section pure_counter.
        WP ((FVal (VList [a; handler p n nx]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc [("x", cint nx)] pure_counter_body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "Hm Hs Hr Hwp".
+    iIntros (Hcur Hl) "Hm Hs Hr Hwp".
     rewrite /pure_counter_body.
-    iApply (wp_usestate_succ_slot with "Hm Hs Hr"); first done.
-    iIntros "Hm Hs Hr".
+    iApply (wp_usestate_succ_slot with "Hm Hs Hr"); first by rewrite Hcur.
+    iIntros "Hm Hs Hr". rewrite Hcur.
     iDestruct "Hs" as "(%fs & %HD & Hq & Hγ)". simpl in HD. destruct HD as [n ->].
     iAssert (slot_res δ is_int γ (StEntry (cint n) []))
       with "[Hq Hγ]" as "Hs".
