@@ -155,13 +155,14 @@ Section runtime.
 
   (** ** Running an effect queue (COMMITEFFSPATH, after the child) *)
 
-  (** [effect_spec S cl]: the effect thunk [cl], run in Normal phase, takes
-      the resource [S] to [S] again (a client-chosen frame threaded through
-      the queue, e.g. ownership of the memory and the views it updates). *)
-  Definition effect_spec (S : iProp Σ) (cl : domains.val) : iProp Σ :=
+  (** [effect_spec S S' cl]: the effect thunk [cl], run in Normal phase,
+      takes the resource [S] to [S'] (client-chosen frames, e.g. ownership
+      of the memory and the views the effect updates through setters, and
+      the output). *)
+  Definition effect_spec (S S' : iProp Σ) (cl : domains.val) : iProp Σ :=
     match cl with
     | VClos _ e σ =>
-        ∀ ks Φ, S -∗ (∀ v, S -∗ WP ((FVal v, ks) : expr (reactLang δ)) {{ Φ }}) -∗
+        ∀ ks Φ, S -∗ (∀ v, S' -∗ WP ((FVal v, ks) : expr (reactLang δ)) {{ Φ }}) -∗
                 WP ((FExpr PNormal σ e, ks) : expr (reactLang δ)) {{ Φ }}
     | _ => False
     end.
@@ -170,16 +171,18 @@ Section runtime.
       (after the child commit) and [FVal v] (after an effect). *)
   Definition commit_ret (f : focus) : Prop := f = FUnit ∨ ∃ v, f = FVal v.
 
-  Lemma wp_commit_effects S p q f ks Φ :
+  (** Running an effect queue: the [i]-th effect takes [Ss i] to
+      [Ss (i+1)]; the whole queue takes [Ss 0] to [Ss (length q)]. *)
+  Lemma wp_commit_effects (Ss : nat → iProp Σ) p q f ks Φ :
     commit_ret f →
-    ([∗ list] cl ∈ q, effect_spec S cl) -∗
-    S -∗
-    (∀ f', ⌜commit_ret f'⌝ -∗ S -∗
+    ([∗ list] i ↦ cl ∈ q, effect_spec (Ss i) (Ss (S i)) cl) -∗
+    Ss 0 -∗
+    (∀ f', ⌜commit_ret f'⌝ -∗ Ss (length q) -∗
            WP ((f', KCommitEffs p [] :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((f, KCommitEffs p q :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (Hf) "Hq HS Hk".
-    iInduction q as [|cl q IH] "IH" forall (f Hf).
+    iInduction q as [|cl q IH] "IH" forall (Ss f Hf).
     - by iApply ("Hk" with "[//] HS").
     - iDestruct "Hq" as "[Hcl Hq]".
       destruct cl as [| xi ei σi | | | |]; try done.
@@ -188,7 +191,9 @@ Section runtime.
       { intros σ. by destruct Hf as [-> | [v ->]]. }
       iNext.
       iApply ("Hcl" with "HS"). iIntros (v) "HS".
-      iApply ("IH" $! (FVal v) with "[%] Hq HS Hk"). by right; eexists.
+      iApply ("IH" $! (λ i, Ss (S i)) (FVal v) with "[%] Hq HS [Hk]").
+      { by right; eexists. }
+      iIntros (f' Hf') "HS". by iApply ("Hk" with "[//] HS").
   Qed.
 
   (** Clearing the Effect decision from either return focus. *)
