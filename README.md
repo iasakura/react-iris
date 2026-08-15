@@ -18,8 +18,21 @@ See [docs/design.md](docs/design.md) for the design document and roadmap.
 
 ## Status
 
-Early stage: project infrastructure (M0) and the formalization of the
-React-tRace core calculus (M1) are in progress.
+- **M0–M2 done.** Syntax and semantic objects; a fueled executable
+  interpreter and a small-step machine for the React-tRace semantics,
+  cross-validated on the paper's examples (`theories/lang/tests.v`); an
+  Iris language instance with a per-view points-to state interpretation,
+  `wp_bind`, and adequacy (`theories/logic/{inst,lifting,adequacy}.v`).
+- **M3 in progress.** Redex rules for every machine step, a hook layer
+  with the updater-purity obligation (`hooks.v`), runtime lemmas
+  (`runtime.v`), a model layer for the logical values of hook slots
+  (`model.v`), and root component specifications as refinements of an
+  abstract LTS (`component.v`). Verified examples: Counter (a trace
+  theorem: for every click trace, safe and displaying twice the number
+  of clicks), SelfCounter (the effect-driven cycle), Parent/Child, and a
+  pure Counter in model form (`theories/examples/`).
+
+See the roadmap in [docs/design.md](docs/design.md) §6.
 
 ## Build
 
@@ -40,8 +53,9 @@ make clean
 ```
 theories/
   prelude.v      common imports and options
-  lang/          syntax, semantic domains, machine, executable interpreter
-  logic/         Iris language instance, program logic, hook/component specs
+  lang/          syntax, semantic domains, executable interpreter, machine, tests
+  logic/         Iris language instance, lifting, redex rules, hook layer,
+                 runtime lemmas, model layer, component specs, adequacy
   examples/      verified example components
 docs/design.md   design document
 vendor/react-trace  reference interpreter (oracle for differential tests)
