@@ -88,8 +88,16 @@ Definition stt_store := gmap label st_entry.
 
 (** ** Views and tree memory
 
-    [π = {spec: ⟨C, v⟩, dec: d̄, sttst: ρ, effq: q, child: t}] *)
-Record view := View {
+    [π = {spec: ⟨C, v⟩, dec: d̄, sttst: ρ, effq: q, child: t}]
+
+    The constructor is [MkView], not [View]: Iris exports a constructor
+    [View] (of [iris.algebra.view]) that would shadow it in files importing
+    Iris — and elaborating a wrongly-resolved [View] against an expected
+    [domains.view] has been observed to make the unifier diverge (memory
+    exhaustion), not merely fail. The type names [val]/[view] are likewise
+    shadowed by Iris in the logic layer and are referred to as
+    [domains.val] / [domains.view] there. *)
+Record view := MkView {
   vw_comp : comp_name;
   vw_arg : val;
   vw_dec : decisions;
@@ -144,7 +152,7 @@ Global Instance st_entry_settable : Settable st_entry :=
 Global Instance decisions_settable : Settable decisions :=
   settable! Decisions <dec_check; dec_effect>.
 Global Instance view_settable : Settable view :=
-  settable! View <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child>.
+  settable! MkView <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child>.
 Global Instance config_settable : Settable config :=
   settable! Config <c_tree; c_mem; c_out; c_mode>.
 

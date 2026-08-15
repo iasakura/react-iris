@@ -463,7 +463,7 @@ Section machine.
             | None => Stuck "undefined component"
             | Some (CompDef x body) =>
                 let p := fresh_path (mc_mem c) in
-                let π0 := View C v dec_empty ∅ [] (TConst CUnit) in
+                let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) in
                 mret (c <| mc_focus := FBody PInit p π0 [(x, v)] body |>
                         <| mc_stack ::= cons (KInitBody p) |>)
             end
