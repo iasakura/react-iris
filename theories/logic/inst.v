@@ -12,7 +12,7 @@
     single runtime operation — rather than only whole-program runs.
     A full program still ends in [MIdle t] (event-loop mode •), so
     top-level WP postconditions speak about reaching quiescence, matching
-    design decision D6.
+    design decision D7.
 
     Steps are the graph of the deterministic [mstep]; a [Stuck] result of
     [mstep] is precisely irreducibility, so Iris safety ("not stuck")

@@ -8,7 +8,7 @@
     The interpreter is the executable reference for the small-step machine
     ([machine.v], to come): the react-trace test suite is ported against it
     ([tests.v]) so that distortions of the semantics are caught early
-    (design decision D5).
+    (design decision D6).
 
     Results distinguish being stuck (no rule applies — a genuine error such
     as calling another component's setter during render) from running out
@@ -477,7 +477,7 @@ Section interp.
     end.
 
   (** ** The display: the realized view hierarchy in quiescent states
-      (observation of D6; handlers are opaque). *)
+      (observation of D7; handlers are opaque). *)
   Fixpoint display_t (fuel : nat) (m : tree_mem) (t : tree)
       {struct fuel} : res dtree :=
     match fuel with

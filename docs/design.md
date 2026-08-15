@@ -221,7 +221,47 @@ conformance check.
   invoked at adversarial times, so their specs are persistent, with
   resources supplied through invariants.
 
-### D5: Conformance with the paper and the real implementation
+### D5: Binder representation — named variables, environment semantics
+
+Syntax uses direct-style named binders (strings), not de Bruijn indices,
+locally nameless, PHOAS, or nominal sets. This is safe for the planned
+metatheory because **the development contains no substitution at all**:
+the semantics is environment-based (closures ⟨λx.e, σ⟩), evaluation
+never rewrites terms, and β-reduction is environment extension. All the
+classic pains of named binders (capture avoidance, α-equivalence,
+substitution lemmas) originate in substitution into terms and therefore
+never arise. The metatheory we plan — machine/interpreter agreement, the
+paper's invariants, hook specs, the fiber refinement (a simulation
+between two environment machines, relating closures as "same body +
+related environments") — manipulates configurations, not binders. The
+worst case on the horizon is environment weakening ("only free variables
+matter"), which is a routine structural induction under named syntax.
+
+Precedent: Iris's HeapLang is named (strings + stdpp [binder]) *with*
+substitution — naive, shadowing-aware, non-capture-avoiding — sound
+because only closed values are ever substituted; its `metatheory.v`
+(closedness, parallel [subst_map], substitution lemmas) is explicitly
+"not needed for verifying programs" and exists for logical-relations
+developments. RustBelt-scale developments run on this. We are strictly
+on the safer side: no substitution means no closedness bookkeeping
+either. Conversely, the first-order named deep embedding is what keeps
+the executable interpreter, the `vm_compute` test suite, and the
+correspondence with react-trace source programs readable (PHOAS would
+break decidable equality and executability; de Bruijn would obscure the
+tests).
+
+Known boundary: verifying *term-rewriting transformations* (e.g., a
+React-compiler-style memoization pass, §7 of the paper) would move terms
+across binders and reopen the freshness question. If we go there, the
+plan is a local detour — compile named syntax to a nameless
+representation for that study — rather than changing the base language.
+
+Note one deliberate consequence: STTREBIND's value comparison
+([vₙ ≢ v₀]) is syntactic, so α-equivalent-but-distinct closures compare
+unequal. This is faithful to JavaScript reference equality on functions
+(a callback recreated on each render is a different value in React).
+
+### D6: Conformance with the paper and the real implementation
 
 - Besides the machine, write a **fueled executable interpreter** in Rocq and
   prove it agrees with the machine. Port the react-trace test suite (18
@@ -230,7 +270,7 @@ conformance check.
 - After extensions (cursor, deps, cleanup), keep differential tests against
   the OCaml implementation as an oracle on the shared fragment.
 
-### D6: Observations and the shape of the top-level theorem
+### D7: Observations and the shape of the top-level theorem
 
 Observations = the trace ω of `print` + the displayed tree `display(m, t)` in
 quiescent states (event-loop mode), realizing constants / closures / arrays
@@ -317,7 +357,7 @@ component_spec C (M : LTS A) (V : A → ViewSpec → iProp) :=
   state a.
 - Handlers are chosen adversarially (in any quiescent state), hence
   persistent specs.
-- The top level is the refinement theorem of D6. Parent/child composition:
+- The top level is the refinement theorem of D7. Parent/child composition:
   verify the parent assuming the child's component_spec (value passing via
   props; setter passing = passing `isSetter`).
 
