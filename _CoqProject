@@ -25,3 +25,4 @@ theories/examples/selfcounter.v
 theories/examples/pure_counter.v
 theories/examples/parent_child.v
 theories/examples/rules_of_hooks.v
+theories/examples/custom_hook.v
