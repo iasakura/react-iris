@@ -89,7 +89,7 @@ Section hooks.
       (v : domains.val) : domains.val :=
     match fs with [] => v | f :: fs' => fold_upd fs' (f v) end.
 
-  Local Lemma fold_upd_dom D fs v :
+  Lemma fold_upd_dom D fs v :
     Forall (λ f, ∀ v, D v → D (f v)) fs → D v → D (fold_upd fs v).
   Proof.
     revert v. induction fs as [|f fs IH]; intros v Hall Hv; first done.

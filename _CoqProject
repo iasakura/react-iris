@@ -13,7 +13,9 @@ theories/logic/step_rules.v
 theories/logic/runtime_rules.v
 theories/logic/hooks.v
 theories/logic/runtime.v
+theories/logic/model.v
 theories/logic/adequacy.v
 theories/examples/counter.v
 theories/examples/counter_modular.v
 theories/examples/selfcounter.v
+theories/examples/pure_counter.v

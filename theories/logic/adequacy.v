@@ -21,11 +21,13 @@ Class reactGpreS (Σ : gFunctors) := ReactGpreS {
   react_pre_mem :: ghost_mapG Σ path domains.view;
   react_pre_reg :: ghost_varG Σ (option (path * domains.view));
   react_pre_out :: ghost_varG Σ out_buf;
+  react_pre_model :: ghost_varG Σ domains.val;
 }.
 
 Definition reactΣ : gFunctors :=
   #[invΣ; ghost_mapΣ path domains.view;
-    ghost_varΣ (option (path * domains.view)); ghost_varΣ out_buf].
+    ghost_varΣ (option (path * domains.view)); ghost_varΣ out_buf;
+    ghost_varΣ domains.val].
 
 Global Instance subG_reactGpreS {Σ} : subG reactΣ Σ → reactGpreS Σ.
 Proof. solve_inG. Qed.
@@ -45,7 +47,7 @@ Proof.
   iEval (rewrite -Qp.half_half) in "Hout".
   iDestruct (ghost_var_split with "Hout") as "[Hout Hout']".
   iModIntro.
-  iExists (ReactGS Σ _ _ _ γm γr γo).
+  iExists (ReactGS Σ _ _ _ _ γm γr γo).
   by iFrame.
 Qed.
 

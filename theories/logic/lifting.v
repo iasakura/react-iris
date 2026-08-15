@@ -27,6 +27,9 @@ Class reactGS (Σ : gFunctors) := ReactGS {
   react_mem_inG :: ghost_mapG Σ path domains.view;
   react_reg_inG :: ghost_varG Σ (option (path * domains.view));
   react_out_inG :: ghost_varG Σ out_buf;
+  (* logical values of hook slots (model layer, model.v); allocated per
+     slot, so no fixed name *)
+  react_model_inG :: ghost_varG Σ domains.val;
   react_mem_name : gname;
   react_reg_name : gname;
   react_out_name : gname;
