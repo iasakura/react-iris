@@ -23,7 +23,7 @@ let Counter x =
     model layer: its queue is not pure, so [slot_res] cannot be
     established — [upd_pure] is where the user obligation bites. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine.
+From react_iris.lang Require Import syntax domains notation interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime model.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre.
@@ -32,11 +32,8 @@ From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Definition pure_counter_body : syntax.expr :=
-  EUseState 0 "s" "setS" (EVar "x")
-    (EView [EVar "s";
-            EFun "_"
-              (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-                    (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1))))))]).
+  (let: "s", "setS" := useState "x" in
+   ⟪ "s"; λ: "_", "setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1) ⟫)%r.
 
 Section pure_counter.
   Context `{!invGS Σ, !reactGS Σ}.
@@ -51,7 +48,7 @@ Section pure_counter.
   Proof. intros [n ->]. by exists (n + 1)%Z. Qed.
 
   Lemma upd_pure_inc σ :
-    ⊢ upd_pure δ is_int (VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1))) σ) finc.
+    ⊢ upd_pure δ is_int (VClos "s" ("s" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
     do 5 wp_pure. by iApply "Hwp".
@@ -59,9 +56,7 @@ Section pure_counter.
 
   (** The handler closure rendered at state [ns] (argument [nx]). *)
   Definition handler (p : path) (ns nx : Z) : domains.val :=
-    VClos "_"
-      (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-            (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1))))))
+    VClos "_" ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1))%r
       (env_insert "setS" (VSetter 0 p) (env_insert "s" (cint ns) [("x", cint nx)])).
 
   (** ** The callback as an abstract transition: +2 *)
@@ -76,8 +71,7 @@ Section pure_counter.
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
                           (env_insert "setS" (VSetter 0 p)
                              (env_insert "s" (cint ns) [("x", cint nx)])))
-           (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-                 (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))),
+           ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1))%r,
          ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (Hp Hl) "Hm Hs Hmem Hv Hr Hwp".

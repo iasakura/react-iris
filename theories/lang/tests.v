@@ -6,11 +6,8 @@
     the differential-testing harness against the OCaml interpreter
     ([vendor/react-trace]) is in place. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine.
+From react_iris.lang Require Import syntax domains notation interp machine.
 
-Local Definition intc (n : Z) : expr := EConst (CInt n).
-Local Definition strc (s : string) : expr := EConst (CString s).
-Local Definition unit_e : expr := EConst CUnit.
 Local Definition vint (n : Z) : val := VConst (CInt n).
 Local Definition vstr (s : string) : val := VConst (CString s).
 
@@ -42,21 +39,15 @@ let Counter x =
 Counter 0
 >> *)
 Definition counter_body : expr :=
-  ESeq (EPrint (strc "Counter"))
-    (EUseState 0 "s" "setS" (EVar "x")
-      (ESeq (EPrint (strc "Return"))
-        (EView [EVar "s";
-                EFun "_"
-                  (ESeq
-                     (EApp (EVar "setS")
-                        (EFun "s" (EBop BPlus (EVar "s") (intc 1))))
-                     (EApp (EVar "setS")
-                        (EFun "s" (ESeq (EPrint (strc "Update"))
-                                     (EBop BPlus (EVar "s") (intc 1))))))]))).
+  (print: Str "Counter" ;;
+   let: "s", "setS" := useState "x" in
+   print: Str "Return" ;;
+   ⟪ "s";
+     λ: "_", "setS" (λ: "s", "s" + 1) ;;
+             "setS" (λ: "s", print: Str "Update" ;; "s" + 1) ⟫)%r.
 
 Definition counter_prog : prog :=
-  Prog [("Counter", CompDef "x" counter_body)]
-       (EApp (ECompName "Counter") (intc 0)).
+  Prog [("Counter", CompDef "x" counter_body)] (Comp "Counter" 0)%r.
 
 Example counter_wf : comp_def_wf (CompDef "x" counter_body) = true.
 Proof. vm_compute. reflexivity. Qed.
@@ -106,19 +97,15 @@ SelfCounter 0
     Expected console: 0 Return Effect 1 Return Effect 2 Return Effect
     3 Return Effect. *)
 Definition selfcounter_body : expr :=
-  EUseState 0 "s" "setS" (EVar "x")
-    (ESeq (EPrint (EVar "s"))
-      (ESeq (EUseEffect
-               (ESeq (EPrint (strc "Effect"))
-                  (EIf (EBop BLt (EVar "s") (intc 3))
-                     (EApp (EVar "setS")
-                        (EFun "t" (EBop BPlus (EVar "t") (intc 1))))
-                     unit_e)))
-        (ESeq (EPrint (strc "Return")) (EView [EVar "s"])))).
+  (let: "s", "setS" := useState "x" in
+   print: "s" ;;
+   useEffect: (print: Str "Effect" ;;
+               if: "s" < 3 then "setS" (λ: "t", "t" + 1) else #()) ;;
+   print: Str "Return" ;;
+   ⟪ "s" ⟫)%r.
 
 Definition selfcounter_prog : prog :=
-  Prog [("SelfCounter", CompDef "x" selfcounter_body)]
-       (EApp (ECompName "SelfCounter") (intc 0)).
+  Prog [("SelfCounter", CompDef "x" selfcounter_body)] (Comp "SelfCounter" 0)%r.
 
 Example selfcounter_out :
   run_out selfcounter_prog [] =
@@ -136,12 +123,12 @@ Proof. vm_compute. reflexivity. Qed.
     retry loop. The unbounded semantics diverges; the interpreter reports
     fuel exhaustion (never a [Stuck], never an [Ok]). *)
 Definition inf2_body : expr :=
-  EUseState 0 "s" "setS" (EVar "x")
-    (ESeq (EApp (EVar "setS") (EFun "t" (EVar "t")))
-       (EVar "s")).
+  (let: "s", "setS" := useState "x" in
+   "setS" (λ: "t", "t") ;;
+   "s")%r.
 
 Definition inf2_prog : prog :=
-  Prog [("Inf2", CompDef "x" inf2_body)] (EApp (ECompName "Inf2") (intc 0)).
+  Prog [("Inf2", CompDef "x" inf2_body)] (Comp "Inf2" 0)%r.
 
 Example inf2_diverges : run_prog FUEL inf2_prog [] = OOF.
 Proof. vm_compute. reflexivity. Qed.
@@ -159,19 +146,14 @@ let Demo x =
 Demo 0
 >> *)
 Definition demo_body : expr :=
-  EUseState 0 "s" "setS" (EVar "x")
-    (ELet "f" (EFun "t" (EBop BPlus (EVar "t") (intc 1)))
-      (ESeq (EIf (EBop BEq (EVar "s") (intc 0))
-               (EApp (EVar "setS") (EVar "f")) unit_e)
-        (ESeq (EUseEffect
-                 (EIf (EBop BEq (EVar "s") (intc 1))
-                    (EApp (EVar "setS") (EVar "f")) unit_e))
-          (EIf (EBop BLe (EVar "s") (intc 1))
-             unit_e
-             (EFun "_" (EApp (EVar "setS") (EVar "f"))))))).
+  (let: "s", "setS" := useState "x" in
+   let: "f" := λ: "t", "t" + 1 in
+   (if: "s" = 0 then "setS" "f" else #()) ;;
+   useEffect: (if: "s" = 1 then "setS" "f" else #()) ;;
+   if: "s" ≤ 1 then #() else λ: "_", "setS" "f")%r.
 
 Definition demo_prog : prog :=
-  Prog [("Demo", CompDef "x" demo_body)] (EApp (ECompName "Demo") (intc 0)).
+  Prog [("Demo", CompDef "x" demo_body)] (Comp "Demo" 0)%r.
 
 (** Quiescent at s = 2 with the button mounted (paper's step (5)). *)
 Example demo_state : run_state demo_prog [] 0 0 = Ok (Some (vint 2)).
@@ -191,13 +173,11 @@ Proof. vm_compute. reflexivity. Qed.
 (** ** Bin (Fig. 2): recursive components, array views, fresh paths.
     Bin 2 mounts a complete binary tree: 1 + 2 + 4 = 7 views. *)
 Definition bin_body : expr :=
-  EIf (EBop BEq (EVar "n") (intc 0))
-    unit_e
-    (EView [EApp (ECompName "Bin") (EBop BMinus (EVar "n") (intc 1));
-            EApp (ECompName "Bin") (EBop BMinus (EVar "n") (intc 1))]).
+  (if: "n" = 0 then #()
+   else ⟪ Comp "Bin" ("n" - 1); Comp "Bin" ("n" - 1) ⟫)%r.
 
 Definition bin_prog : prog :=
-  Prog [("Bin", CompDef "n" bin_body)] (EApp (ECompName "Bin") (intc 2)).
+  Prog [("Bin", CompDef "n" bin_body)] (Comp "Bin" 2)%r.
 
 Example bin_nviews : run_nviews bin_prog [] = Ok 7%nat.
 Proof. vm_compute. reflexivity. Qed.
@@ -215,16 +195,15 @@ Proof. vm_compute. reflexivity. Qed.
     passes its setter to Child, and Child calls it at the top level of its
     body (Init phase, foreign path ⇒ APPSETCOMP inapplicable). *)
 Definition parent_body : expr :=
-  EUseState 0 "b" "setB" (EConst (CBool true))
-    (EView [EApp (ECompName "Child") (EVar "setB")]).
+  (let: "b", "setB" := useState true in
+   ⟪ Comp "Child" "setB" ⟫)%r.
 
 Definition child_body : expr :=
-  ESeq (EApp (EVar "set") (EFun "t" (EVar "t")))
-    unit_e.
+  ("set" (λ: "t", "t") ;; #())%r.
 
 Definition cross_setter_prog : prog :=
   Prog [("Parent", CompDef "x" parent_body); ("Child", CompDef "set" child_body)]
-       (EApp (ECompName "Parent") unit_e).
+       (Comp "Parent" #())%r.
 
 Example cross_setter_stuck :
   run_prog FUEL cross_setter_prog []
@@ -235,17 +214,16 @@ Proof. vm_compute. reflexivity. Qed.
     Child's effect updates Parent's state (allowed), Parent re-renders and
     drops the Child (reconciliation ()-branch), Child's state is gone. *)
 Definition eff_parent_body : expr :=
-  EUseState 0 "b" "setB" (EConst (CBool true))
-    (EIf (EVar "b") (EApp (ECompName "EffChild") (EVar "setB")) unit_e).
+  (let: "b", "setB" := useState true in
+   if: "b" then Comp "EffChild" "setB" else #())%r.
 
 Definition eff_child_body : expr :=
-  ESeq (EUseEffect (EApp (EVar "set") (EFun "_" (EConst (CBool false)))))
-    unit_e.
+  (useEffect: "set" (λ: "_", false) ;; #())%r.
 
 Definition eff_cross_prog : prog :=
   Prog [("Parent", CompDef "x" eff_parent_body);
         ("EffChild", CompDef "set" eff_child_body)]
-       (EApp (ECompName "Parent") unit_e).
+       (Comp "Parent" #())%r.
 
 Example eff_cross_state :
   run_state eff_cross_prog [] 0 0 = Ok (Some (VConst (CBool false))).

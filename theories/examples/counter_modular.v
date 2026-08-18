@@ -9,7 +9,7 @@
     the resulting memory. Compare [examples/counter.v], which obtains the
     same conclusion by executing the machine ([wp_mrun_ok]). *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine tests.
+From react_iris.lang Require Import syntax domains notation interp machine tests.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy component.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -47,10 +47,7 @@ Section counter_modular.
       re-renders). *)
   Definition counter_handler (p : path) (ns nx : Z) : domains.val :=
     VClos "_"
-      (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-            (EApp (EVar "setS")
-               (EFun "s" (ESeq (EPrint (EConst (CString "Update")))
-                            (EBop BPlus (EVar "s") (EConst (CInt 1)))))))
+      ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r
       (env_insert "setS" (VSetter 0 p)
          (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])).
 
@@ -126,9 +123,8 @@ Section counter_modular.
     (let henv := env_insert "_" (VConst CUnit)
                    (env_insert "setS" (VSetter 0 p)
                       (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])) in
-     let cl1 := VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1))) henv in
-     let cl2 := VClos "s" (ESeq (EPrint (EConst (CString "Update")))
-                             (EBop BPlus (EVar "s") (EConst (CInt 1)))) henv in
+     let cl1 := VClos "s" ("s" + 1)%r henv in
+     let cl2 := VClos "s" (print: Str "Update" ;; "s" + 1)%r henv in
      let π' := π <| vw_dec ::= dec_add_check |>
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [cl1; cl2]) |>) |> in
      mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
@@ -136,11 +132,8 @@ Section counter_modular.
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
                           (env_insert "setS" (VSetter 0 p)
                              (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])))
-           (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-                 (EApp (EVar "setS")
-                    (EFun "s" (ESeq (EPrint (EConst (CString "Update")))
-                                 (EBop BPlus (EVar "s") (EConst (CInt 1))))))), ks)
-        : expr (reactLang δ)) {{ Φ }}.
+           ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r,
+         ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (Hp Hl) "Hm Hv Hr Hwp".
     wp_pure. wp_pure. wp_pure. wp_pure. wp_pure.
@@ -164,10 +157,9 @@ Section counter_modular.
       (env_insert "setS" (VSetter 0 p)
          (env_insert "s" (cint ns) [("x", cint nx)])).
   Local Definition cl1 (p : path) (ns nx : Z) : domains.val :=
-    VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1))) (henv p ns nx).
+    VClos "s" ("s" + 1)%r (henv p ns nx).
   Local Definition cl2 (p : path) (ns nx : Z) : domains.val :=
-    VClos "s" (ESeq (EPrint (EConst (CString "Update")))
-                 (EBop BPlus (EVar "s") (EConst (CInt 1)))) (henv p ns nx).
+    VClos "s" (print: Str "Update" ;; "s" + 1)%r (henv p ns nx).
 
   (** Succ-phase body with the concrete click queue [cl1; cl2] on slot 0:
       "Counter", then the fold — the second updater prints "Update"
@@ -210,10 +202,7 @@ Section counter_modular.
       empty queue, no decisions, no pending effects, and the rendered
       child [[n; handler]] where the handler closure captured [n]. *)
   Local Definition hbody : syntax.expr :=
-    ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
-         (EApp (EVar "setS")
-            (EFun "s" (ESeq (EPrint (EConst (CString "Update")))
-                         (EBop BPlus (EVar "s") (EConst (CInt 1)))))).
+    ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r.
 
   Local Definition Π (n : Z) : domains.view :=
     MkView "Counter" (cint 0) (Decisions false false)

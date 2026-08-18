@@ -18,7 +18,7 @@ Parent true
     The dropped child's view stays in memory (paths are never
     deallocated), invisible to the display. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine tests.
+From react_iris.lang Require Import syntax domains notation interp machine tests.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -35,9 +35,9 @@ Section parent_child.
   (** The child's effect thunk (captures the parent's setter) and the
       updater it queues. *)
   Local Definition eff (p : path) : domains.val :=
-    VClos "_" (EApp (EVar "set") (EFun "_" (EConst (CBool false)))) [("set", VSetter 0 p)].
+    VClos "_" ("set" (λ: "_", false))%r [("set", VSetter 0 p)].
   Local Definition to_false (p : path) : domains.val :=
-    VClos "_" (EConst (CBool false)) [("set", VSetter 0 p)].
+    VClos "_" (false : syntax.expr)%r [("set", VSetter 0 p)].
   Local Definition is_bool (v : domains.val) : Prop := ∃ b, v = vbool b.
 
   Lemma upd_pure_to_false p :
@@ -113,8 +113,7 @@ Section parent_child.
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [to_false p]) |>) |> in
      mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
-    WP ((FExpr PNormal [("set", VSetter 0 p)]
-           (EApp (EVar "set") (EFun "_" (EConst (CBool false)))), ks)
+    WP ((FExpr PNormal [("set", VSetter 0 p)] ("set" (λ: "_", false))%r, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros (Hp Hl) "Hm Hv Hr Hwp".

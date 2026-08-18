@@ -24,7 +24,7 @@ SelfCounter 0
     (setter call in Normal phase), and [wp_usestate_succ_pure] with a
     genuinely pure queue. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine tests.
+From react_iris.lang Require Import syntax domains notation interp machine tests.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -41,15 +41,12 @@ Section selfcounter.
   (** The effect body, and the closures the program creates: the effect
       thunk registered at state [k] and the updater it queues. *)
   Local Definition eff_body : syntax.expr :=
-    ESeq (EPrint (EConst (CString "Effect")))
-      (EIf (EBop BLt (EVar "s") (EConst (CInt 3)))
-         (EApp (EVar "setS") (EFun "t" (EBop BPlus (EVar "t") (EConst (CInt 1)))))
-         (EConst CUnit)).
+    (print: Str "Effect" ;; if: "s" < 3 then "setS" (λ: "t", "t" + 1) else #())%r.
   Local Definition benv (p : path) (k : Z) : env :=
     env_insert "setS" (VSetter 0 p) (env_insert "s" (cint k) [("x", cint 0)]).
   Local Definition eff (p : path) (k : Z) : domains.val := VClos "_" eff_body (benv p k).
   Local Definition inc (p : path) (k : Z) : domains.val :=
-    VClos "t" (EBop BPlus (EVar "t") (EConst (CInt 1))) (benv p k).
+    VClos "t" ("t" + 1)%r (benv p k).
   Local Definition finc (v : domains.val) : domains.val :=
     match v with VConst (CInt n) => VConst (CInt (n + 1)) | _ => v end.
 
@@ -57,7 +54,7 @@ Section selfcounter.
       [wp_usestate_succ_pure], discharged by symbolic execution with no
       state resources in hand. *)
   Lemma upd_pure_inc σ :
-    ⊢ upd_pure δ is_int (VClos "t" (EBop BPlus (EVar "t") (EConst (CInt 1))) σ) finc.
+    ⊢ upd_pure δ is_int (VClos "t" ("t" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
     do 5 wp_pure. by iApply "Hwp".
