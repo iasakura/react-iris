@@ -32,6 +32,131 @@ Section counter_modular.
   Local Definition δ : def_table := prog_def_table counter_prog.
   Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
+  (** ** The Counter body and handler, from the hook rules
+
+      [counter_body] (tests.v):
+<<
+  print "Counter";
+  let (s, setS) = useState⁰ x in
+  print "Return";
+  [s, fun _ -> setS (fun s -> s + 1); setS (fun s -> print "Update"; s + 1)]
+>> *)
+
+  (** The handler closure captures the current state [ns] and the
+      argument [nx] (equal on the initial render, distinct after
+      re-renders). *)
+  Definition counter_handler (p : path) (ns nx : Z) : domains.val :=
+    VClos "_"
+      (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
+            (EApp (EVar "setS")
+               (EFun "s" (ESeq (EPrint (EConst (CString "Update")))
+                            (EBop BPlus (EVar "s") (EConst (CInt 1)))))))
+      (env_insert "setS" (VSetter 0 p)
+         (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])).
+
+  (** Init phase: prints "Counter", allocates slot 0 with the argument,
+      prints "Return", and returns the view spec [[n; handler]]. *)
+  Lemma counter_body_init (n : Z) p π ω ks Φ :
+    render_ctx p π -∗ out_frag ω -∗
+    (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>) -∗
+     out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
+     WP ((FVal (VList [VConst (CInt n); counter_handler p n n]), ks)
+         : expr (reactLang δ)) {{ Φ }}) -∗
+    WP ((FExpr PInit [("x", VConst (CInt n))] counter_body, ks)
+        : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros "Hr Ho Hwp".
+    rewrite /counter_body.
+    wp_pure. wp_pure. wp_pure.
+    iApply (wp_print with "Ho"). iNext. iIntros "Ho".
+    wp_pure.
+    iApply (wp_usestate_init with "Hr"). iNext. iIntros "Hr".
+    wp_pure.
+    iApply (wp_usestate_mount with "Hr"). iNext. iIntros "Hr".
+    wp_pure. wp_pure. wp_pure.
+    iApply (wp_print with "Ho"). iNext. iIntros "Ho".
+    do 6 wp_pure.
+    rewrite -app_assoc.
+    by iApply ("Hwp" with "Hr Ho").
+  Qed.
+
+  (** Succ phase with a pure, int-preserving queue on slot 0 (the
+      argument [nx] is only read by the ignored initial-value expression):
+      prints "Counter", folds the queue, prints "Return", returns the view
+      spec with the folded value. *)
+
+  Lemma counter_body_succ (nx n : Z) q fs p π ω ks Φ :
+    vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
+    queue_pure δ is_int q fs -∗
+    render_ctx p π -∗ out_frag ω -∗
+    (∀ n', ⌜fold_upd fs (VConst (CInt n)) = VConst (CInt n')⌝ -∗
+     render_ctx p (commit_slot π 0 (VConst (CInt n)) (VConst (CInt n'))) -∗
+     out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
+     WP ((FVal (VList [VConst (CInt n'); counter_handler p n' nx]), ks)
+         : expr (reactLang δ)) {{ Φ }}) -∗
+    WP ((FExpr PSucc [("x", VConst (CInt nx))] counter_body, ks)
+        : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros (Hl) "#Hq Hr Ho Hwp".
+    iPoseProof "Hq" as "[%Hdom _]".
+    pose proof (fold_upd_dom is_int fs (VConst (CInt n)) Hdom (ex_intro _ n eq_refl))
+      as [n' Hn'].
+    rewrite /counter_body.
+    wp_pure. wp_pure. wp_pure.
+    iApply (wp_print with "Ho"). iNext. iIntros "Ho".
+    wp_pure.
+    iApply (wp_usestate_succ_pure with "Hq Hr"); [done|by exists n|].
+    iIntros "Hr". rewrite Hn'.
+    wp_pure. wp_pure. wp_pure.
+    iApply (wp_print with "Ho"). iNext. iIntros "Ho".
+    do 6 wp_pure.
+    rewrite -app_assoc.
+    by iApply ("Hwp" with "[//] Hr Ho").
+  Qed.
+
+  (** The handler, invoked outside rendering (Normal phase, empty
+      register) on the mounted view: enqueues both updaters on slot 0
+      and turns on Check — the machine content of "the callback is a
+      transition (+2) of the abstract state", to be lifted to a ghost
+      model in the component layer. *)
+  Lemma counter_handler_spec (ns nx : Z) p π ent m ks Φ :
+    m !! p = Some π →
+    vw_sttst π !! 0 = Some ent →
+    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
+    (let henv := env_insert "_" (VConst CUnit)
+                   (env_insert "setS" (VSetter 0 p)
+                      (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])) in
+     let cl1 := VClos "s" (EBop BPlus (EVar "s") (EConst (CInt 1))) henv in
+     let cl2 := VClos "s" (ESeq (EPrint (EConst (CString "Update")))
+                             (EBop BPlus (EVar "s") (EConst (CInt 1)))) henv in
+     let π' := π <| vw_dec ::= dec_add_check |>
+                 <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [cl1; cl2]) |>) |> in
+     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+     WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
+    WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
+                          (env_insert "setS" (VSetter 0 p)
+                             (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])))
+           (ESeq (EApp (EVar "setS") (EFun "s" (EBop BPlus (EVar "s") (EConst (CInt 1)))))
+                 (EApp (EVar "setS")
+                    (EFun "s" (ESeq (EPrint (EConst (CString "Update")))
+                                 (EBop BPlus (EVar "s") (EConst (CInt 1))))))), ks)
+        : expr (reactLang δ)) {{ Φ }}.
+  Proof.
+    iIntros (Hp Hl) "Hm Hv Hr Hwp".
+    wp_pure. wp_pure. wp_pure. wp_pure. wp_pure.
+    iApply (wp_setter_normal with "Hm Hv Hr"); [done|done|].
+    iNext. iIntros "Hm Hv Hr".
+    wp_pure. wp_pure. wp_pure. wp_pure. wp_pure.
+    iApply (wp_setter_normal with "Hm Hv Hr").
+    { by rewrite lookup_insert_eq. }
+    { by rewrite lookup_insert_eq. }
+    iNext. iIntros "Hm Hv Hr".
+    (* normalize: collapse double inserts, reassociate the queue *)
+    iEval (rewrite /= !insert_insert_eq /= -!app_assoc) in "Hm".
+    iEval (rewrite /= !insert_insert_eq /= -!app_assoc) in "Hv".
+    by iApply ("Hwp" with "Hm Hv Hr").
+  Qed.
+
   (** The two updaters queued by one click of the handler (hooks.v,
       [counter_handler_spec]), with the handler's environment. *)
   Local Definition henv (p : path) (ns nx : Z) : env :=
@@ -134,7 +259,7 @@ Section counter_modular.
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = s1⌝ ∗ out_frag ω_mount)%I) with "[Ho] Hm Hr").
     { done. }
     { iIntros (ks Φ') "Hr Hk'".
-      iApply (counter_body_init _ 0 with "Hr Ho").
+      iApply (counter_body_init 0 with "Hr Ho").
       iIntros "Hr Ho".
       iApply ("Hk'" $! s1 π1 with "[//] Hr [Ho]"). by iFrame. }
     iIntros (s π' _) "Hm Hp Hr (-> & -> & Ho)".
@@ -179,7 +304,7 @@ Section counter_modular.
     { by vm_compute. }
     { done. }
     iNext. iIntros "Hm".
-    iApply (counter_handler_spec _ n 0 0 (Π n) (StEntry (cint n) []) with "Hm Hp Hr");
+    iApply (counter_handler_spec n 0 0 (Π n) (StEntry (cint n) []) with "Hm Hp Hr");
       [by rewrite lookup_insert_eq|by vm_compute|].
     iIntros "Hm Hp Hr".
     iEval (rewrite insert_insert_eq) in "Hm".
