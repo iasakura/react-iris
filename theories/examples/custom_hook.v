@@ -26,7 +26,7 @@ let Comp x =
     discipline of design.md §5.3 (the slot count is exposed as [S (vw_cur
     π)]; hiding it behind an abstract hook context is future work). *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine.
+From react_iris.lang Require Import syntax domains notation interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre.
@@ -35,21 +35,14 @@ From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Definition useCounter_body : syntax.expr :=
-  EUseState 0 "c" "setC" (EVar "init")
-    (EFun "sel"
-       (EIf (EVar "sel") (EVar "c")
-          (EFun "_" (EApp (EVar "setC")
-                       (EFun "v" (EBop BPlus (EVar "v") (EConst (CInt 1)))))))).
+  (let: "c", "setC" := useState "init" in
+   λ: "sel", if: "sel" then "c" else λ: "_", "setC" (λ: "v", "v" + 1))%r.
 
 Definition comp_body : syntax.expr :=
-  ELet "useCounter" (EFun "init" useCounter_body)
-    (ELet "r" (EApp (EVar "useCounter") (EVar "x"))
-      (EUseState 0 "t" "setT" (EConst (CInt 0))
-        (EView [EApp (EVar "r") (EConst (CBool true));
-                EVar "t";
-                EApp (EVar "r") (EConst (CBool false));
-                EFun "_" (EApp (EVar "setT")
-                            (EFun "v" (EBop BPlus (EVar "v") (EConst (CInt 10)))))]))).
+  (let: "useCounter" := λ: "init", useCounter_body in
+   let: "r" := "useCounter" "x" in
+   let: "t", "setT" := useState 0 in
+   ⟪ "r" true; "t"; "r" false; λ: "_", "setT" (λ: "v", "v" + 10) ⟫)%r.
 
 Section custom_hook.
   Context `{!invGS Σ, !reactGS Σ}.
@@ -61,10 +54,7 @@ Section custom_hook.
       path [p], defined in the environment [σ]. *)
   Definition counter_api (p : path) (l : label) (c : domains.val) (σ : env)
       : domains.val :=
-    VClos "sel"
-      (EIf (EVar "sel") (EVar "c")
-         (EFun "_" (EApp (EVar "setC")
-                      (EFun "v" (EBop BPlus (EVar "v") (EConst (CInt 1)))))))
+    VClos "sel" (if: "sel" then "c" else λ: "_", "setC" (λ: "v", "v" + 1))%r
       (env_insert "setC" (VSetter l p) (env_insert "c" c σ)).
 
   (** ** The hook's specifications (proved once) *)
@@ -123,13 +113,11 @@ Section custom_hook.
                      <| vw_sttst ::= insert (S l) (StEntry (cint 0) []) |>
                      <| vw_cur := S (S l) |>) -∗
      WP ((FVal (VList [v; cint 0;
-                       VClos "_" (EApp (EVar "setC")
-                                    (EFun "v" (EBop BPlus (EVar "v") (EConst (CInt 1)))))
+                       VClos "_" ("setC" (λ: "v", "v" + 1))%r
                          (env_insert "sel" (VConst (CBool false))
                             (env_insert "setC" (VSetter l p)
                                (env_insert "c" v (env_insert "init" v [("x", v)]))));
-                       VClos "_" (EApp (EVar "setT")
-                                    (EFun "v" (EBop BPlus (EVar "v") (EConst (CInt 10)))))
+                       VClos "_" ("setT" (λ: "v", "v" + 10))%r
                          (env_insert "setT" (VSetter (S l) p)
                             (env_insert "t" (cint 0) σr))]), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
