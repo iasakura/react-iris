@@ -65,13 +65,13 @@ Section counter_modular.
 
   (** The two updaters a click queues on slot 0, in the handler's
       environment. *)
-  Local Definition henv (p : path) (ns nx : Z) : env :=
+  Definition henv (p : path) (ns nx : Z) : env :=
     env_insert "_" (VConst CUnit)
       (env_insert "setS" (VSetter 0 p)
          (env_insert "s" (cint ns) [("x", cint nx)])).
-  Local Definition cl1 (p : path) (ns nx : Z) : domains.val :=
+  Definition cl1 (p : path) (ns nx : Z) : domains.val :=
     VClos "s" ("s" + 1)%r (henv p ns nx).
-  Local Definition cl2 (p : path) (ns nx : Z) : domains.val :=
+  Definition cl2 (p : path) (ns nx : Z) : domains.val :=
     VClos "s" (print: Str "Update" ;; "s" + 1)%r (henv p ns nx).
 
   (** ** State-side data: the quiescent view and the outputs
