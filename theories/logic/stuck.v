@@ -32,7 +32,7 @@ Section stuck.
         end
     end.
 
-  Lemma stuck_at_sound n c c' :
+  Lemma stuck_at_sound (n : nat) (c c' : mcfg) :
     stuck_at n c = Some c' →
     rtc erased_step ([cfg_expr c : expr (reactLang δ)], cfg_state c)
                     ([cfg_expr c'], cfg_state c') ∧
@@ -58,7 +58,8 @@ Section stuck.
   Qed.
 
   (** A stuck non-value refutes adequacy, for any postcondition. *)
-  Theorem stuck_not_adequate n c c' φ :
+  Theorem stuck_not_adequate (n : nat) (c c' : mcfg)
+      (φ : mval → lstate → Prop) :
     stuck_at n c = Some c' →
     ¬ adequate NotStuck (cfg_expr c : expr (reactLang δ)) (cfg_state c) φ.
   Proof.
@@ -75,7 +76,8 @@ Section stuck.
   Definition stuck_within (n : nat) (c : mcfg) : bool :=
     match stuck_at n c with Some _ => true | None => false end.
 
-  Corollary stuck_within_not_adequate n c φ :
+  Corollary stuck_within_not_adequate (n : nat) (c : mcfg)
+      (φ : mval → lstate → Prop) :
     stuck_within n c = true →
     ¬ adequate NotStuck (cfg_expr c : expr (reactLang δ)) (cfg_state c) φ.
   Proof.

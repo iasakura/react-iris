@@ -57,7 +57,8 @@ Section custom_hook.
 
   (** Init: allocate the slot at the cursor with the argument, return the
       API bound to it. *)
-  Lemma useCounter_init (v : domains.val) σ p π ks Φ :
+  Lemma useCounter_init (v : domains.val) (σ : env) (p : path)
+      (π : domains.view) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx p π -∗
     (render_ctx p (π <| vw_sttst ::= insert (vw_cur π) (StEntry v []) |>
                      <| vw_cur := S (vw_cur π) |>) -∗
@@ -76,7 +77,10 @@ Section custom_hook.
 
   (** Succ, pure queue: the count is the fold; the queue is flushed and
       Effect appears iff the count changed. *)
-  Lemma useCounter_succ D (v : domains.val) σ p π v0 q fs ks Φ :
+  Lemma useCounter_succ (D : domains.val → Prop) (v : domains.val) (σ : env)
+      (p : path) (π : domains.view) (v0 : domains.val)
+      (q : list domains.val) (fs : list (domains.val → domains.val))
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     vw_sttst π !! vw_cur π = Some (StEntry v0 q) →
     D v0 →
     queue_pure δ D q fs -∗
@@ -99,7 +103,8 @@ Section custom_hook.
       view), the component's state the next one; the view spec exposes
       the count, the component state, the increment handler, and the
       component's own handler. *)
-  Lemma comp_init (v : domains.val) p π ks Φ :
+  Lemma comp_init (v : domains.val) (p : path) (π : domains.view)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx p π -∗
     (let l := vw_cur π in
      let σr := env_insert "r" (counter_api p l v (env_insert "init" v [("x", v)]))

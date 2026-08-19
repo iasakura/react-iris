@@ -90,14 +90,14 @@ Section selfcounter.
   (** [λt. t+1] is a pure updater on integers — the obligation of
       [wp_usestate_succ_pure], discharged by symbolic execution with no
       state resources in hand. *)
-  Lemma upd_pure_inc σ :
+  Lemma upd_pure_inc (σ : env) :
     ⊢ upd_pure δ is_int (VClos "t" ("t" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
     do 5 wp_pure. by iApply "Hwp".
   Qed.
 
-  Lemma queue_pure_inc p k :
+  Lemma queue_pure_inc (p : path) (k : Z) :
     ⊢ queue_pure δ is_int [inc p k] [finc].
   Proof.
     iSplit.
@@ -109,7 +109,8 @@ Section selfcounter.
 
   (** Init phase (argument 0): allocates slot 0 at 0, prints 0, registers
       the effect thunk, prints "Return", returns the view spec [[0]]. *)
-  Lemma body_init p π ω ks Φ :
+  Lemma body_init (p : path) (π : domains.view) (ω : out_buf)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     vw_cur π = 0 →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (cint 0) []]> |> <| vw_cur := 1 |>
@@ -138,7 +139,8 @@ Section selfcounter.
   (** Succ phase at state [k] with the queued updater: folds to [k+1]
       (Effect on, since the value changed), prints it, registers the
       effect thunk at [k+1], prints "Return", returns [[k+1]]. *)
-  Lemma body_succ (k j : Z) p π ω ks Φ :
+  Lemma body_succ (k j : Z) (p : path) (π : domains.view) (ω : out_buf)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     vw_cur π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint k) [inc p j]) →
     render_ctx p π -∗ out_frag ω -∗
@@ -176,7 +178,9 @@ Section selfcounter.
 
   (** At state [k < 3]: prints "Effect" and queues [λt. t+1] on slot 0
       of the view at [p], turning on Check. *)
-  Lemma effect_lt (k : Z) p π ent m ω ks Φ :
+  Lemma effect_lt (k : Z) (p : path) (π : domains.view) (ent : st_entry)
+      (m : tree_mem) (ω : out_buf) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     (k < 3)%Z →
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
@@ -203,7 +207,8 @@ Section selfcounter.
   Qed.
 
   (** At state [k ≥ 3]: prints "Effect" and does nothing else. *)
-  Lemma effect_ge (k : Z) p ω ks Φ :
+  Lemma effect_ge (k : Z) (p : path) (ω : out_buf)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     (3 ≤ k)%Z →
     out_frag ω -∗
     (out_frag (ω ++ [VConst (CString "Effect")]) -∗
@@ -228,7 +233,8 @@ Section selfcounter.
       (Check), the re-render folds the state to [k+1] and registers a
       new effect (Effect), the child is reconciled — back to [A (k+1)],
       with the measure [3 − k] decreased. *)
-  Lemma cycle (k : Z) ω ks Φ :
+  Lemma cycle (k : Z) (ω : out_buf) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     (k < 3)%Z →
     A k ω -∗
     (A (k + 1) (ω ++ ω_cycle k) -∗
@@ -305,7 +311,8 @@ Section selfcounter.
 
   (** The last round at [k = 3]: the effect runs (prints "Effect") but
       queues nothing; the check finds nothing to do; quiescence. *)
-  Lemma last_round ω ks Φ :
+  Lemma last_round (ω : out_buf) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     A 3 ω -∗
     (mem_auth_frag (<[0 := ΠF]> ∅) -∗ out_frag (ω ++ [VConst (CString "Effect")]) -∗
      WP ((FIdle (TPath 0), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -340,7 +347,7 @@ Section selfcounter.
   Qed.
 
   (** ** Mount *)
-  Lemma mount Φ :
+  Lemma mount (Φ : mval → iProp Σ) :
     own_cfg (machine_init_cfg selfcounter_prog []) -∗
     (A 0 ω_mount -∗
      WP ((FCommit (TPath 0), [KPostCommit (TPath 0); KEvents []]) : expr (reactLang δ)) {{ Φ }}) -∗

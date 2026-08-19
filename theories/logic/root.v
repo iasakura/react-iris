@@ -52,7 +52,7 @@ Fixpoint handlers_free (t : tree) : list domains.val :=
   end.
 
 Section free_trees.
-  Lemma tree_of_path_free_gen n :
+  Lemma tree_of_path_free_gen (n : nat) :
     ∀ s, val_size s ≤ n → spec_free s → path_free (tree_of s).
   Proof.
     induction n as [|n IH]; intros s Hsz Hsf.
@@ -64,10 +64,11 @@ Section free_trees.
     pose proof (val_sum_elem s ss Hin). lia.
   Qed.
 
-  Lemma tree_of_path_free s : spec_free s → path_free (tree_of s).
+  Lemma tree_of_path_free (s : domains.val) :
+    spec_free s → path_free (tree_of s).
   Proof. apply (tree_of_path_free_gen (val_size s)); lia. Qed.
 
-  Lemma tree_size_tree_of_gen n :
+  Lemma tree_size_tree_of_gen (n : nat) :
     ∀ s, val_size s ≤ n → tree_size (tree_of s) = val_size s.
   Proof.
     induction n as [|n IH]; intros s Hsz.
@@ -78,10 +79,11 @@ Section free_trees.
     pose proof (val_sum_elem s ss (proj2 (list_elem_of_In _ _) Hin)). lia.
   Qed.
 
-  Lemma tree_size_tree_of s : tree_size (tree_of s) = val_size s.
+  Lemma tree_size_tree_of (s : domains.val) :
+    tree_size (tree_of s) = val_size s.
   Proof. apply (tree_size_tree_of_gen (val_size s)); lia. Qed.
 
-  Lemma display_t_free n :
+  Lemma display_t_free (n : nat) :
     ∀ m t, tree_size t ≤ n → path_free t →
     display_t n m t = Ok (display_free t).
   Proof.
@@ -101,7 +103,7 @@ Section free_trees.
     rewrite Hgo; [done|done|lia].
   Qed.
 
-  Lemma handlers_h_free_gen n :
+  Lemma handlers_h_free_gen (n : nat) :
     ∀ h m t, tree_size t ≤ n → path_free t →
     handlers_h (S h) m t = Ok (handlers_free t).
   Proof.
@@ -114,13 +116,13 @@ Section free_trees.
     rewrite IHl; [done|lia|done].
   Qed.
 
-  Lemma handlers_h_free h m t :
+  Lemma handlers_h_free (h : nat) (m : tree_mem) (t : tree) :
     path_free t → handlers_h (S h) m t = Ok (handlers_free t).
   Proof. apply (handlers_h_free_gen (tree_size t)); lia. Qed.
 
   (** At the root: the memory holds a view at path 0 with a path-free
       child. *)
-  Lemma handlers_of_leaf m π :
+  Lemma handlers_of_leaf (m : tree_mem) (π : domains.view) :
     m !! (0:path) = Some π → path_free (vw_child π) →
     handlers_of m (TPath 0) = Ok (handlers_free (vw_child π)).
   Proof.
@@ -132,7 +134,7 @@ Section free_trees.
 
   (** One fuel step on a path (stated to avoid [simpl] on the unary
       fuel numeral). *)
-  Lemma display_t_path_S n m p :
+  Lemma display_t_path_S (n : nat) (m : tree_mem) (p : path) :
     display_t (S n) m (TPath p)
       = match m !! p with
         | Some π => display_t n m (vw_child π)
@@ -140,7 +142,7 @@ Section free_trees.
         end.
   Proof. reflexivity. Qed.
 
-  Lemma display_leaf m π :
+  Lemma display_leaf (m : tree_mem) (π : domains.view) :
     m !! (0:path) = Some π → path_free (vw_child π) → tree_size (vw_child π) ≤ 999 →
     display_t 1000 m (TPath 0) = Ok (display_free (vw_child π)).
   Proof.
@@ -239,14 +241,15 @@ Section leaf_root.
 
   (** *** Auxiliary facts *)
 
-  Local Lemma qview_child a : vw_child (qview a) = tree_of (ld_spec L a).
+  Local Lemma qview_child (a : rs_A S) :
+    vw_child (qview a) = tree_of (ld_spec L a).
   Proof. done. Qed.
 
   (** *** Mount *)
 
   (** From [FInit ⟨C, v⟩] in rendered mode to quiescence in an initial
       state. *)
-  Lemma leaf_mount ks Φ :
+  Lemma leaf_mount (ks : list machine.frame) Φ :
     leaf_obligations -∗
     mem_auth_frag ∅ -∗ reg_token None -∗ out_frag [] -∗
     (∀ a m ω, ⌜rs_init S a⌝ -∗ leaf_inv a m ω -∗
@@ -299,7 +302,8 @@ Section leaf_root.
 
   (** From quiescence in [a], dispatching a valid event [i] returns to
       quiescence in a successor [a']. *)
-  Lemma leaf_event a m ω i evs ks Φ :
+  Lemma leaf_event (a : rs_A S) (m : tree_mem) (ω : out_buf) (i : nat)
+      (evs : list nat) (ks : list machine.frame) Φ :
     rs_valid S a i →
     leaf_obligations -∗
     leaf_inv a m ω -∗
@@ -400,7 +404,7 @@ Section leaf_root.
        WP ((FInit (VCompSpec (ld_C L) (ld_v L)), KMainMounted :: ks) : expr (reactLang δ)) {{ Φ }} -∗
        WP ((FExpr PNormal [] (p_main P), KMainInit :: ks) : expr (reactLang δ)) {{ Φ }}).
 
-  Theorem leaf_root_obligations P :
+  Theorem leaf_root_obligations (P : prog) :
     main_spec P -∗ leaf_obligations -∗ root_obligations δ P S leaf_inv.
   Proof.
     iIntros "#Hmain #Hob".
@@ -428,7 +432,7 @@ Section leaf_root.
   Qed.
 
   (** The main expression [Comp C k]: a component applied to a constant. *)
-  Lemma main_spec_const P k :
+  Lemma main_spec_const (P : prog) (k : syntax.const) :
     p_main P = EApp (ECompName (ld_C L)) (EConst k) →
     ld_v L = VConst k →
     ⊢ main_spec P.

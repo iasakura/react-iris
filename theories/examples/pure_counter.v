@@ -53,10 +53,10 @@ Section pure_counter.
 
   (** ** The updater is pure *)
 
-  Lemma finc_int v : is_int v → is_int (finc v).
+  Lemma finc_int (v : domains.val) : is_int v → is_int (finc v).
   Proof. intros [n ->]. by exists (n + 1)%Z. Qed.
 
-  Lemma upd_pure_inc σ :
+  Lemma upd_pure_inc (σ : env) :
     ⊢ upd_pure δ is_int (VClos "s" ("s" + 1)%r σ) finc.
   Proof.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
@@ -64,7 +64,9 @@ Section pure_counter.
   Qed.
 
   (** ** The callback as an abstract transition: +2 *)
-  Lemma click_spec γ (n ns nx : Z) p π ent m ks Φ :
+  Lemma click_spec (γ : gname) (n ns nx : Z) (p : path) (π : domains.view)
+      (ent : st_entry) (m : tree_mem) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     latest_state γ (cint n) -∗ slot_res δ is_int γ ent -∗
@@ -93,7 +95,9 @@ Section pure_counter.
   Qed.
 
   (** ** The display as a function of the abstract state *)
-  Lemma body_succ_spec γ (a : domains.val) (nx : Z) p π ent ks Φ :
+  Lemma body_succ_spec (γ : gname) (a : domains.val) (nx : Z) (p : path)
+      (π : domains.view) (ent : st_entry) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     vw_cur π = 0 →
     vw_sttst π !! 0 = Some ent →
     latest_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗

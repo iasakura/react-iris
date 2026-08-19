@@ -16,7 +16,7 @@
       ghost variable holds [fold fs (committed value)].
 
     Rules:
-    - [slot_alloc]: mounting a hook allocates a model;
+    - [slot_alloc]: mounting a hook allocates the ghost pair;
     - [wp_setter_normal_slot]: a setter call with a pure updater [f]
       takes [latest_state γ a] to [latest_state γ (f a)] — the abstract
       transition — while enqueuing [f] physically;
@@ -50,7 +50,8 @@ Section slots.
     ∃ fs, ⌜D (st_val ent)⌝ ∗ queue_pure δ D (st_queue ent) fs ∗
           ghost_var γ (1/2) (fold_upd fs (st_val ent)).
 
-  Lemma fold_upd_app fs1 fs2 v :
+  Lemma fold_upd_app (fs1 fs2 : list (domains.val → domains.val))
+      (v : domains.val) :
     fold_upd (fs1 ++ fs2) v = fold_upd fs2 (fold_upd fs1 v).
   Proof. revert v. induction fs1; intros; simpl; auto. Qed.
 
@@ -78,7 +79,8 @@ Section slots.
   Qed.
 
   (** Enqueuing a pure updater advances the logical value. *)
-  Lemma slot_enqueue D γ a ent cl f :
+  Lemma slot_enqueue (D : domains.val → Prop) (γ : gname) (a : domains.val)
+      (ent : st_entry) (cl : domains.val) (f : domains.val → domains.val) :
     (∀ v, D v → D (f v)) →
     upd_pure δ D cl f -∗ latest_state γ a -∗ slot_res D γ ent ==∗
     latest_state γ (f a) ∗ slot_res D γ (ent <| st_queue ::= (λ q, q ++ [cl]) |>).
@@ -123,7 +125,7 @@ Section slots.
 
   (** ** useState on re-render, in slot form (STTREBIND) *)
   Lemma wp_usestate_succ_slot (D : domains.val → Prop) (γ : gname)
-      (a : domains.val) (x xset : var) (e1 e2 : syntax.expr)
+      (a : domains.val) (l : label) (x xset : var) (e1 e2 : syntax.expr)
       (σb : env) (p : path) (π : domains.view) (ent : st_entry)
       (ks : list machine.frame) Φ :
     vw_sttst π !! vw_cur π = Some ent →

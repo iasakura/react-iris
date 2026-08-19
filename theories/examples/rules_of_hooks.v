@@ -30,7 +30,7 @@ From react_iris.lang Require Import syntax domains programs interp machine.
 From react_iris.logic Require Import inst stuck.
 From iris.program_logic Require Import adequacy.
 
-Theorem cond_not_adequate φ :
+Theorem cond_not_adequate (φ : mval → lstate → Prop) :
   ¬ adequate NotStuck
       (cfg_expr (machine_init_cfg cond_prog [0%nat])
          : expr (reactLang (prog_def_table cond_prog)))
