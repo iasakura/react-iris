@@ -278,14 +278,14 @@ Section pure_subtrees.
     | _ => TConst CUnit
     end.
 
-  Local Lemma list_sum_elem (t : tree) (ts : list tree) :
+  Lemma list_sum_elem (t : tree) (ts : list tree) :
     t ∈ ts → tree_size t ≤ list_sum (map tree_size ts).
   Proof.
     induction ts as [|t' ts IH]; intros Hin; first by inversion Hin.
     inversion Hin; subst; simpl; [lia|]. specialize (IH H1). lia.
   Qed.
 
-  Local Lemma val_sum_elem (v : domains.val) (vs : list domains.val) :
+  Lemma val_sum_elem (v : domains.val) (vs : list domains.val) :
     v ∈ vs → val_size v ≤ list_sum (map val_size vs).
   Proof.
     induction vs as [|v' vs IH]; intros Hin; first by inversion Hin.

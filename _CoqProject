@@ -17,6 +17,7 @@ theories/logic/runtime.v
 theories/logic/slots.v
 theories/logic/adequacy.v
 theories/logic/component.v
+theories/logic/root.v
 theories/logic/stuck.v
 theories/examples/programs.v
 theories/examples/counter.v
