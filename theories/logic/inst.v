@@ -39,11 +39,11 @@ Definition cfg_state (c : mcfg) : lstate :=
 Definition glue (e : lexpr) (σ : lstate) : mcfg :=
   MCfg e.1 e.2 (ls_mem σ) (ls_reg σ) (ls_out σ).
 
-Lemma glue_split c : glue (cfg_expr c) (cfg_state c) = c.
+Lemma glue_split (c : mcfg) : glue (cfg_expr c) (cfg_state c) = c.
 Proof. by destruct c. Qed.
-Lemma glue_expr e σ : cfg_expr (glue e σ) = e.
+Lemma glue_expr (e : lexpr) (σ : lstate) : cfg_expr (glue e σ) = e.
 Proof. by destruct e. Qed.
-Lemma glue_state e σ : cfg_state (glue e σ) = σ.
+Lemma glue_state (e : lexpr) (σ : lstate) : cfg_state (glue e σ) = σ.
 Proof. by destruct σ. Qed.
 
 (** ** Machine values *)
@@ -74,7 +74,7 @@ Definition lto_val (e : lexpr) : option mval :=
   | _ => None
   end.
 
-Lemma lto_val_idle c t :
+Lemma lto_val_idle (c : mcfg) (t : tree) :
   mcfg_value c = Some t → lto_val (cfg_expr c) = Some (MIdle t).
 Proof.
   destruct c as [f ks ???]; destruct f, ks; try done.
@@ -91,14 +91,18 @@ Definition fill (K : list frame) (e : lexpr) : lexpr := (e.1, e.2 ++ K).
 Definition app_cfg (K : list frame) (c : mcfg) : mcfg :=
   MCfg (mc_focus c) (mc_stack c ++ K) (mc_mem c) (mc_reg c) (mc_out c).
 
-Lemma app_cfg_glue K e σ : glue (fill K e) σ = app_cfg K (glue e σ).
+Lemma app_cfg_glue (K : list frame) (e : lexpr) (σ : lstate) :
+  glue (fill K e) σ = app_cfg K (glue e σ).
 Proof. by destruct e. Qed.
-Lemma app_cfg_expr K c : cfg_expr (app_cfg K c) = fill K (cfg_expr c).
+Lemma app_cfg_expr (K : list frame) (c : mcfg) :
+  cfg_expr (app_cfg K c) = fill K (cfg_expr c).
 Proof. done. Qed.
-Lemma app_cfg_state K c : cfg_state (app_cfg K c) = cfg_state c.
+Lemma app_cfg_state (K : list frame) (c : mcfg) :
+  cfg_state (app_cfg K c) = cfg_state c.
 Proof. done. Qed.
 
-Lemma fill_lto_val K e : lto_val e = None → lto_val (fill K e) = None.
+Lemma fill_lto_val (K : list frame) (e : lexpr) :
+  lto_val e = None → lto_val (fill K e) = None.
 Proof. destruct e as [f ks]; destruct f, ks; done. Qed.
 
 Section lang.
@@ -110,7 +114,7 @@ Section lang.
 
   (** A configuration that steps is not a value: terminal foci with an
       empty stack are exactly where [mstep] is [Stuck]. *)
-  Lemma mstep_not_val c c' :
+  Lemma mstep_not_val (c c' : mcfg) :
     mstep δ c = Ok c' → lto_val (cfg_expr c) = None.
   Proof. destruct c as [f ks ???]; destruct f, ks; try done; by intros ?. Qed.
 
@@ -129,7 +133,7 @@ Section lang.
       inspects the stack beyond its head, and a non-value never exposes
       the appended frames as the head. This single fact makes [fill K] a
       [LanguageCtx], from which Iris's generic [wp_bind] follows. *)
-  Lemma mstep_app K c :
+  Lemma mstep_app (K : list frame) (c : mcfg) :
     lto_val (cfg_expr c) = None →
     mstep δ (app_cfg K c) = app_cfg K <$> mstep δ c.
   Proof.

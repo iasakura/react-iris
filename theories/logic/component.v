@@ -78,7 +78,9 @@ Section component.
     Persistent (root_obligations P S Inv).
   Proof. apply _. Qed.
 
-  Lemma root_run P S Inv (evs : list nat) (a : rs_A S) m ω :
+  Lemma root_run (P : prog) (S : root_spec)
+      (Inv : rs_A S → tree_mem → out_buf → iProp Σ)
+      (evs : list nat) (a : rs_A S) (m : tree_mem) (ω : out_buf) :
     rs_admissible S a evs →
     root_obligations P S Inv -∗
     Inv a m ω -∗
@@ -106,7 +108,8 @@ Section component.
       by econstructor.
   Qed.
 
-  Lemma root_wp P S Inv (evs : list nat) :
+  Lemma root_wp (P : prog) (S : root_spec)
+      (Inv : rs_A S → tree_mem → out_buf → iProp Σ) (evs : list nat) :
     (∀ a, rs_init S a → rs_admissible S a evs) →
     root_obligations P S Inv -∗
     own_cfg (machine_init_cfg P evs) -∗
@@ -127,7 +130,8 @@ End component.
 
 (** The generic top-level theorem: a component satisfying [root_obligations]
     refines its abstract LTS along every admissible trace. *)
-Theorem root_adequacy Σ `{!reactGpreS Σ} (P : prog) (S : root_spec)
+Theorem root_adequacy (Σ : gFunctors) `{!reactGpreS Σ} (P : prog)
+    (S : root_spec)
     (Inv : ∀ `{!invGS Σ} `{!reactGS Σ}, rs_A S → tree_mem → out_buf → iProp Σ)
     (evs : list nat) :
   (∀ a, rs_init S a → rs_admissible S a evs) →

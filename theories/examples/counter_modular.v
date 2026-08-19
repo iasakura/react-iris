@@ -99,7 +99,7 @@ Section counter_modular.
   Local Definition ω_click : out_buf :=
     [VConst (CString "Counter"); VConst (CString "Update"); VConst (CString "Return")].
 
-  Lemma display_Π n :
+  Lemma display_Π (n : Z) :
     display_t 1000 (<[0 := Π n]> ∅) (TPath 0)
       = Ok (DList [DConst (CInt n); DHandler]).
   Proof. by vm_compute. Qed.
@@ -108,7 +108,8 @@ Section counter_modular.
 
   (** Init phase: prints "Counter", allocates slot 0 with the argument,
       prints "Return", and returns the view spec [[n; handler]]. *)
-  Lemma counter_body_init (n : Z) p π ω ks Φ :
+  Lemma counter_body_init (n : Z) (p : path) (π : domains.view)
+      (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>) -∗
      out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
@@ -137,7 +138,9 @@ Section counter_modular.
       prints "Counter", folds the queue, prints "Return", returns the view
       spec with the folded value. *)
 
-  Lemma counter_body_succ (nx n : Z) q fs p π ω ks Φ :
+  Lemma counter_body_succ (nx n : Z) (q : list domains.val)
+      (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
+      (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
     queue_pure δ is_int q fs -∗
     render_ctx p π -∗ out_frag ω -∗
@@ -171,7 +174,9 @@ Section counter_modular.
       and turns on Check — the machine content of "the callback is a
       transition (+2) of the abstract state", to be lifted to a ghost
       ghost slot in the component layer. *)
-  Lemma counter_handler_spec (ns nx : Z) p π ent m ks Φ :
+  Lemma counter_handler_spec (ns nx : Z) (p : path) (π : domains.view)
+      (ent : st_entry) (m : tree_mem) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
@@ -209,7 +214,9 @@ Section counter_modular.
       "Counter", then the fold — the second updater prints "Update"
       during the render (the update-timing observation of §2.1) — then
       "Return"; the state advances by 2 and the Effect decision is on. *)
-  Lemma counter_body_succ_click (narg n ns nx : Z) p π ω ks Φ :
+  Lemma counter_body_succ_click (narg n ns nx : Z) (p : path)
+      (π : domains.view) (ω : out_buf) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     vw_sttst π !! 0 = Some (StEntry (cint n) [cl1 p ns nx; cl2 p ns nx]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (commit_slot π 0 (cint n) (cint (n + 1 + 1))) -∗
@@ -242,7 +249,7 @@ Section counter_modular.
   (** ** The runs *)
 
   (** *** Mount: from the initial configuration to the quiescent [I 0] *)
-  Lemma counter_mount evs Φ :
+  Lemma counter_mount (evs : list nat) (Φ : mval → iProp Σ) :
     own_cfg (machine_init_cfg counter_prog evs) -∗
     (I 0 ω_mount -∗
      WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -297,7 +304,8 @@ Section counter_modular.
   Qed.
 
   (** *** One click: [I n] to [I (n+1+1)] *)
-  Lemma counter_click_step (n : Z) ω evs ks Φ :
+  Lemma counter_click_step (n : Z) (ω : out_buf) (evs : list nat)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     I n ω -∗
     (I (n + 1 + 1) (ω ++ ω_click) -∗
      WP ((FIdle (TPath 0), KEvents evs :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -369,7 +377,7 @@ Section counter_modular.
   Qed.
 
   (** *** Any click trace *)
-  Lemma counter_run (evs : list nat) (n : Z) ω :
+  Lemma counter_run (evs : list nat) (n : Z) (ω : out_buf) :
     Forall (λ i, i = 0%nat) evs →
     I n ω -∗
     WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ w,

@@ -38,7 +38,9 @@ Section runtime.
   (** ** Event driver *)
 
   (** STEPEVENT: dispatch the [i]-th handler of the quiescent tree. *)
-  Lemma wp_event_dispatch t i evs hs x e σ m ks Φ :
+  Lemma wp_event_dispatch (t : tree) (i : nat) (evs : list nat)
+      (hs : list domains.val) (x : var) (e : syntax.expr) (σ : env)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     handlers_of m t = Ok hs →
     hs !! i = Some (VClos x e σ) →
     mem_auth_frag m -∗
@@ -52,7 +54,7 @@ Section runtime.
   Qed.
 
   (** Trace exhausted: pop the driver frame. *)
-  Lemma wp_events_done t ks Φ :
+  Lemma wp_events_done (t : tree) (ks : list machine.frame) Φ :
     ▷ WP ((FIdle t, ks) : expr (reactLang δ)) {{ Φ }} -∗
     WP ((FIdle t, KEvents [] :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof. iApply wp_pure_step; [done|by intros]. Qed.
@@ -76,7 +78,9 @@ Section runtime.
     π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |>.
 
   (** Running a body through the retry frame, single round. *)
-  Lemma wp_body_once φ p π σ body Ψ ks Φ :
+  Lemma wp_body_once (φ : phase) (p : path) (π : domains.view) (σ : env)
+      (body : syntax.expr) (Ψ : domains.view → domains.val → iProp Σ)
+      (ks : list machine.frame) Φ :
     body_spec φ p (enter_view π) σ body Ψ -∗
     reg_token None -∗
     (∀ s π', ⌜dec_check (vw_dec π') = false⌝ -∗
@@ -97,7 +101,10 @@ Section runtime.
       Init phase, mount the settled view at [p], and hand over the child
       view spec [s] for initialization ([KInitChild p] on the stack;
       [wp_init_finish] completes once the child tree returns). *)
-  Lemma wp_init_component C v x body m Ψ ks Φ :
+  Lemma wp_init_component (C : comp_name) (v : domains.val) (x : var)
+      (body : syntax.expr) (m : tree_mem)
+      (Ψ : domains.view → domains.val → iProp Σ)
+      (ks : list machine.frame) Φ :
     δ !! C = Some (CompDef x body) →
     body_spec PInit (fresh_path m)
       (enter_view (MkView C v dec_empty ∅ [] (TConst CUnit))) [(x, v)] body Ψ -∗
@@ -124,7 +131,10 @@ Section runtime.
       body in Succ phase, write back, then either reconcile the old child
       against the new view spec (Effect: state changed) or keep checking
       below (no Effect). *)
-  Lemma wp_check_component p π x body m Ψ ks Φ :
+  Lemma wp_check_component (p : path) (π : domains.view) (x : var)
+      (body : syntax.expr) (m : tree_mem)
+      (Ψ : domains.view → domains.val → iProp Σ)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     dec_check (vw_dec π) = true →
     δ !! vw_comp π = Some (CompDef x body) →
@@ -173,7 +183,8 @@ Section runtime.
 
   (** Running an effect queue: the [i]-th effect takes [Ss i] to
       [Ss (i+1)]; the whole queue takes [Ss 0] to [Ss (length q)]. *)
-  Lemma wp_commit_effects (Ss : nat → iProp Σ) p q f ks Φ :
+  Lemma wp_commit_effects (Ss : nat → iProp Σ) (p : path)
+      (q : list domains.val) (f : focus) (ks : list machine.frame) Φ :
     commit_ret f →
     ([∗ list] i ↦ cl ∈ q, effect_spec (Ss i) (Ss (S i)) cl) -∗
     Ss 0 -∗
@@ -197,7 +208,8 @@ Section runtime.
   Qed.
 
   (** Clearing the Effect decision from either return focus. *)
-  Lemma wp_commit_finish_any f p π m ks Φ :
+  Lemma wp_commit_finish_any (f : focus) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     commit_ret f →
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
@@ -262,14 +274,14 @@ Section pure_subtrees.
     | _ => TConst CUnit
     end.
 
-  Local Lemma list_sum_elem (t : tree) ts :
+  Local Lemma list_sum_elem (t : tree) (ts : list tree) :
     t ∈ ts → tree_size t ≤ list_sum (map tree_size ts).
   Proof.
     induction ts as [|t' ts IH]; intros Hin; first by inversion Hin.
     inversion Hin; subst; simpl; [lia|]. specialize (IH H1). lia.
   Qed.
 
-  Local Lemma val_sum_elem (v : domains.val) vs :
+  Local Lemma val_sum_elem (v : domains.val) (vs : list domains.val) :
     v ∈ vs → val_size v ≤ list_sum (map val_size vs).
   Proof.
     induction vs as [|v' vs IH]; intros Hin; first by inversion Hin.
@@ -311,7 +323,7 @@ Section pure_subtrees.
       iApply ("Htail" with "[%] [%] H"); [done|lia].
   Qed.
 
-  Lemma wp_commit_free t ks Φ :
+  Lemma wp_commit_free (t : tree) (ks : list machine.frame) Φ :
     path_free t →
     WP ((FUnit, ks) : expr (reactLang δ)) {{ Φ }} -∗
     WP ((FCommit t, ks) : expr (reactLang δ)) {{ Φ }}.
@@ -350,7 +362,7 @@ Section pure_subtrees.
       iApply ("Htail" with "[%] [%] H"); [done|lia].
   Qed.
 
-  Lemma wp_check_free t ks Φ :
+  Lemma wp_check_free (t : tree) (ks : list machine.frame) Φ :
     path_free t →
     WP ((FBool false, ks) : expr (reactLang δ)) {{ Φ }} -∗
     WP ((FCheck t, ks) : expr (reactLang δ)) {{ Φ }}.
@@ -395,7 +407,7 @@ Section pure_subtrees.
       by iApply ("Htail" $! [] ss with "[%] [%] H"); [done|lia].
   Qed.
 
-  Lemma wp_init_free s ks Φ :
+  Lemma wp_init_free (s : domains.val) (ks : list machine.frame) Φ :
     spec_free s →
     WP ((FTree (tree_of s), ks) : expr (reactLang δ)) {{ Φ }} -∗
     WP ((FInit s, ks) : expr (reactLang δ)) {{ Φ }}.
@@ -454,7 +466,8 @@ Section pure_subtrees.
     by iApply ("Htail" $! [] ts ss with "[%] [%] [%] [%] H"); [lia|done|done|lia].
   Qed.
 
-  Lemma wp_recon_free t s ks Φ :
+  Lemma wp_recon_free (t : tree) (s : domains.val)
+      (ks : list machine.frame) Φ :
     path_free t → spec_free s →
     WP ((FTree (tree_of s), ks) : expr (reactLang δ)) {{ Φ }} -∗
     WP ((FRecon t s, ks) : expr (reactLang δ)) {{ Φ }}.

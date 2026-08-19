@@ -32,7 +32,7 @@ Definition reactΣ : gFunctors :=
 Global Instance subG_reactGpreS {Σ} : subG reactΣ Σ → reactGpreS Σ.
 Proof. solve_inG. Qed.
 
-Lemma react_alloc `{!reactGpreS Σ} c :
+Lemma react_alloc `{!reactGpreS Σ} (c : mcfg) :
   ⊢ |==> ∃ _ : reactGS Σ, state_res (cfg_state c) ∗ own_cfg c.
 Proof.
   iMod (ghost_map_alloc (mc_mem c)) as (γm) "[Hauth Hfrags]".
@@ -51,7 +51,8 @@ Proof.
   by iFrame.
 Qed.
 
-Theorem react_adequacy Σ `{!reactGpreS Σ} (δ : def_table) (c : mcfg)
+Theorem react_adequacy (Σ : gFunctors) `{!reactGpreS Σ} (δ : def_table)
+    (c : mcfg)
     (φ : mval → Prop) :
   (∀ (HI : invGS Σ) (HR : reactGS Σ),
      own_cfg c ⊢ WP (cfg_expr c : expr (reactLang δ)) {{ w, ⌜φ w⌝ }}) →
@@ -73,7 +74,8 @@ Qed.
     Postconditions may pin the final memory and output through ownership
     ([mem_auth_frag] / [out_frag]); this variant transports them to a
     pure statement about the terminal machine state. *)
-Theorem react_adequacy_state Σ `{!reactGpreS Σ} (δ : def_table) (c : mcfg)
+Theorem react_adequacy_state (Σ : gFunctors) `{!reactGpreS Σ}
+    (δ : def_table) (c : mcfg)
     (φ : mval → tree_mem → out_buf → Prop) :
   (∀ (HI : invGS Σ) (HR : reactGS Σ),
      own_cfg c ⊢ WP (cfg_expr c : expr (reactLang δ))

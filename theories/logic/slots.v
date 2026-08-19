@@ -47,12 +47,13 @@ Section slots.
     ∃ fs, ⌜D (st_val ent)⌝ ∗ queue_pure δ D (st_queue ent) fs ∗
           ghost_var γ (1/2) (fold_upd fs (st_val ent)).
 
-  Lemma fold_upd_app fs1 fs2 v :
+  Lemma fold_upd_app (fs1 fs2 : list (domains.val → domains.val))
+      (v : domains.val) :
     fold_upd (fs1 ++ fs2) v = fold_upd fs2 (fold_upd fs1 v).
   Proof. revert v. induction fs1; intros; simpl; auto. Qed.
 
   (** Mounting a slot at [v] allocates its ghost pair. *)
-  Lemma slot_alloc D v :
+  Lemma slot_alloc (D : domains.val → Prop) (v : domains.val) :
     D v → ⊢ |==> ∃ γ, slot_ptsto γ v ∗ slot_res D γ (StEntry v []).
   Proof.
     iIntros (HD).
@@ -65,7 +66,8 @@ Section slots.
   Qed.
 
   (** With an empty queue the logical value is the committed value. *)
-  Lemma slot_ptsto_committed D γ a v :
+  Lemma slot_ptsto_committed (D : domains.val → Prop) (γ : gname)
+      (a v : domains.val) :
     slot_ptsto γ a -∗ slot_res D γ (StEntry v []) -∗ ⌜a = v⌝.
   Proof.
     iIntros "Hm (%fs & _ & [_ Hq] & Hγ)".
@@ -74,7 +76,9 @@ Section slots.
   Qed.
 
   (** Enqueuing a pure updater advances the logical value. *)
-  Lemma slot_enqueue D γ a ent cl f :
+  Lemma slot_enqueue (D : domains.val → Prop) (γ : gname)
+      (a : domains.val) (ent : st_entry) (cl : domains.val)
+      (f : domains.val → domains.val) :
     (∀ v, D v → D (f v)) →
     upd_pure δ D cl f -∗ slot_ptsto γ a -∗ slot_res D γ ent ==∗
     slot_ptsto γ (f a) ∗ slot_res D γ (ent <| st_queue ::= (λ q, q ++ [cl]) |>).
@@ -91,7 +95,11 @@ Section slots.
   Qed.
 
   (** ** Setter outside rendering, in slot form (APPSETNORMAL) *)
-  Lemma wp_setter_normal_slot D γ a f l p' π ent xi ei σi m ks Φ :
+  Lemma wp_setter_normal_slot (D : domains.val → Prop) (γ : gname)
+      (a : domains.val) (f : domains.val → domains.val) (l : label)
+      (p' : path) (π : domains.view) (ent : st_entry) (xi : var)
+      (ei : syntax.expr) (σi : env) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p' = Some π →
     vw_sttst π !! l = Some ent →
     (∀ v, D v → D (f v)) →
@@ -114,7 +122,10 @@ Section slots.
   Qed.
 
   (** ** useState on re-render, in slot form (STTREBIND) *)
-  Lemma wp_usestate_succ_slot D γ a l x xset e1 e2 σb p π ent ks Φ :
+  Lemma wp_usestate_succ_slot (D : domains.val → Prop) (γ : gname)
+      (a : domains.val) (l : label) (x xset : var) (e1 e2 : syntax.expr)
+      (σb : env) (p : path) (π : domains.view) (ent : st_entry)
+      (ks : list machine.frame) Φ :
     vw_sttst π !! l = Some ent →
     slot_ptsto γ a -∗ slot_res D γ ent -∗
     render_ctx p π -∗
@@ -137,7 +148,9 @@ Section slots.
   Qed.
 
   (** ** useState on mount, in slot form (STTBIND) *)
-  Lemma wp_usestate_mount_slot D v σb l x xset e2 p π ks Φ :
+  Lemma wp_usestate_mount_slot (D : domains.val → Prop) (v : domains.val)
+      (σb : env) (l : label) (x xset : var) (e2 : syntax.expr) (p : path)
+      (π : domains.view) (ks : list machine.frame) Φ :
     D v →
     render_ctx p π -∗
     ▷ (∀ γ, slot_ptsto γ v -∗ slot_res D γ (StEntry v []) -∗

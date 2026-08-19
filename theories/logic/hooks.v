@@ -89,7 +89,8 @@ Section hooks.
       (v : domains.val) : domains.val :=
     match fs with [] => v | f :: fs' => fold_upd fs' (f v) end.
 
-  Lemma fold_upd_dom D fs v :
+  Lemma fold_upd_dom (D : domains.val → Prop)
+      (fs : list (domains.val → domains.val)) (v : domains.val) :
     Forall (λ f, ∀ v, D v → D (f v)) fs → D v → D (fold_upd fs v).
   Proof.
     revert v. induction fs as [|f fs IH]; intros v Hall Hv; first done.
@@ -107,7 +108,11 @@ Section hooks.
       <| vw_sttst ::= insert l (StEntry vn []) |>.
 
   (** Folding a pure queue through the [KSttFold] frame. *)
-  Lemma wp_sttfold_pure D v σb l x xset e2 v0 q fs p π ks Φ :
+  Lemma wp_sttfold_pure (D : domains.val → Prop) (v : domains.val)
+      (σb : env) (l : label) (x xset : var) (e2 : syntax.expr)
+      (v0 : domains.val) (q : list domains.val)
+      (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
+      (ks : list machine.frame) Φ :
     D v →
     queue_pure D q fs -∗
     render_ctx p π -∗
@@ -137,7 +142,9 @@ Section hooks.
       expression is evaluated by the client through [wp_fill] on the
       [KUseState] frame; this rule covers the common case of an
       already-evaluated initial value. *)
-  Lemma wp_usestate_mount v σb l x xset e2 p π ks Φ :
+  Lemma wp_usestate_mount (v : domains.val) (σb : env) (l : label)
+      (x xset : var) (e2 : syntax.expr) (p : path) (π : domains.view)
+      (ks : list machine.frame) Φ :
     render_ctx p π -∗
     ▷ (render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |>) -∗
        WP ((FExpr PInit (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
@@ -148,7 +155,10 @@ Section hooks.
   (** STTREBIND (Succ) with a pure queue: the re-render sees the fold of
       the queued functions over the committed value; the queue is
       flushed; Effect iff the value changed. *)
-  Lemma wp_usestate_succ_pure D l x xset e1 e2 σb p π v0 q fs ks Φ :
+  Lemma wp_usestate_succ_pure (D : domains.val → Prop) (l : label)
+      (x xset : var) (e1 e2 : syntax.expr) (σb : env) (p : path)
+      (π : domains.view) (v0 : domains.val) (q : list domains.val)
+      (fs : list (domains.val → domains.val)) (ks : list machine.frame) Φ :
     vw_sttst π !! l = Some (StEntry v0 q) →
     D v0 →
     queue_pure D q fs -∗
@@ -178,7 +188,9 @@ Section hooks.
   Qed.
 
   (** ** Setter outside rendering (APPSETNORMAL) *)
-  Lemma wp_setter_normal l p' π ent xi ei σi m ks Φ :
+  Lemma wp_setter_normal (l : label) (p' : path) (π : domains.view)
+      (ent : st_entry) (xi : var) (ei : syntax.expr) (σi : env)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p' = Some π →
     vw_sttst π !! l = Some ent →
     mem_auth_frag m -∗ view_ptsto p' π -∗ reg_token None -∗

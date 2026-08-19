@@ -78,7 +78,7 @@ Section wp_run.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
-  Lemma mem_auth_halves_join m :
+  Lemma mem_auth_halves_join (m : tree_mem) :
     mem_auth_frag m -∗ mem_auth_frag m -∗
     ghost_map_auth react_mem_name 1 m.
   Proof.
@@ -90,7 +90,7 @@ Section wp_run.
     by iEval (rewrite Qp.half_half) in "H".
   Qed.
 
-  Lemma mem_auth_halves_split m :
+  Lemma mem_auth_halves_split (m : tree_mem) :
     ghost_map_auth react_mem_name 1 m -∗
     mem_auth_frag m ∗ mem_auth_frag m.
   Proof.
@@ -99,7 +99,7 @@ Section wp_run.
     by iEval (rewrite -Qp.half_half (Hfrac (1/2)%Qp (1/2)%Qp)) in "H".
   Qed.
 
-  Local Lemma own_cfg_agree σ c :
+  Local Lemma own_cfg_agree (σ : lstate) (c : mcfg) :
     state_res σ -∗ own_cfg c -∗ ⌜σ = cfg_state c⌝.
   Proof.
     iIntros "(Hm & Hr & Ho) (Hm' & _ & Hr' & Ho')".
@@ -112,7 +112,7 @@ Section wp_run.
   (** Wholesale replacement of the physical state: the client owns the
       exact memory (auth half + all fragments), so both can be rebuilt for
       an arbitrary successor configuration. *)
-  Local Lemma own_cfg_update c c' :
+  Local Lemma own_cfg_update (c c' : mcfg) :
     state_res (cfg_state c) -∗ own_cfg c ==∗
     state_res (cfg_state c') ∗ own_cfg c'.
   Proof.

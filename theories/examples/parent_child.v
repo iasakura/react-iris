@@ -61,7 +61,7 @@ Section parent_child.
     Πp1 <| vw_dec := Decisions false true |> <| vw_child := TPath 1 |>.
 
   (** ** The updater is pure *)
-  Lemma upd_pure_to_false p :
+  Lemma upd_pure_to_false (p : path) :
     ⊢ upd_pure δ is_bool (to_false p) (λ _, vbool false).
   Proof.
     iIntros "!>" (v ks Φ _) "Hwp". wp_pure. by iApply "Hwp".
@@ -71,7 +71,8 @@ Section parent_child.
 
   (** Parent, Init: allocates slot 0 at [true] and returns the child spec
       ⟨Child, setB⟩. *)
-  Lemma parent_init p π ks Φ :
+  Lemma parent_init (p : path) (π : domains.view) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     render_ctx p π -∗
     (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |>) -∗
      WP ((FVal (VCompSpec "EffChild" (VSetter 0 p)), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -87,7 +88,8 @@ Section parent_child.
 
   (** Parent, Succ, with the child's update queued: folds to [false]
       (Effect), renders (). *)
-  Lemma parent_succ p π ks Φ :
+  Lemma parent_succ (p : path) (π : domains.view) (ks : list machine.frame)
+      (Φ : mval → iProp Σ) :
     vw_sttst π !! 0 = Some (StEntry (vbool true) [to_false p]) →
     render_ctx p π -∗
     (render_ctx p (π <| vw_dec ::= dec_add_effect |>
@@ -111,7 +113,8 @@ Section parent_child.
 
   (** Child (at path [pc]), Init: registers the effect (which captures
       the parent's setter at [pp]) and renders (). *)
-  Lemma child_init pc pp π ks Φ :
+  Lemma child_init (pc pp : path) (π : domains.view)
+      (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx pc π -∗
     (render_ctx pc (π <| vw_effq ::= (λ q, q ++ [eff pp]) |>) -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -126,7 +129,8 @@ Section parent_child.
 
   (** The child's effect: calls the parent's setter (path [p]) with
       [λ_. false] — queued on the parent's slot 0, Check on. *)
-  Lemma child_effect p π ent m ks Φ :
+  Lemma child_effect (p : path) (π : domains.view) (ent : st_entry)
+      (m : tree_mem) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
