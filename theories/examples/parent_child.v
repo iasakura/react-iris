@@ -1,11 +1,16 @@
-(** * Parent / Child (§3.2): a child's effect updates the parent's state,
-    the parent re-renders and drops the child.
+(** * Parent / Child: a child's effect updates the parent's state, the
+    parent re-renders and drops the child.
 
+    ** What is verified
+
+    The paper's Parent/Child (§3.2; [eff_cross_prog], programs.v):
 <<
-let Child setS = useEffect (setS (fun _ -> false)); ();;
-let Parent b = let (s, setS) = useState b in if s then Child setS else ();;
-Parent true
+let Parent x = let (b, setB) = useState true in if b then EffChild setB else ();;
+let EffChild set = useEffect (set (fun _ -> false)); ();;
+Parent ()
 >>
+    [parent_child_adequate]: the program never gets stuck, and if it
+    reaches a value it is quiescent, displaying (), with no output.
 
     Two components, nested initialization, an inter-component setter call
     from an effect (Normal phase, on the *parent's* view), and a
@@ -18,7 +23,7 @@ Parent true
     The dropped child's view stays in memory (paths are never
     deallocated), invisible to the display. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine tests.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -32,14 +37,30 @@ Section parent_child.
   Local Definition δ : def_table := prog_def_table eff_cross_prog.
   Local Notation vbool b := (VConst (CBool b)).
 
-  (** The child's effect thunk (captures the parent's setter) and the
-      updater it queues. *)
+  (** ** Program-side data: what the run creates
+
+      The child's effect thunk (it captures the parent's setter, whose
+      path is [p]) and the updater it queues on the parent. *)
   Local Definition eff (p : path) : domains.val :=
     VClos "_" ("set" (λ: "_", false))%r [("set", VSetter 0 p)].
   Local Definition to_false (p : path) : domains.val :=
     VClos "_" (false : syntax.expr)%r [("set", VSetter 0 p)].
   Local Definition is_bool (v : domains.val) : Prop := ∃ b, v = vbool b.
 
+  (** ** State-side data: the views along the run (paths 0 = Parent,
+      1 = Child) *)
+  Local Definition Πp1 : domains.view :=
+    enter_view (MkView "Parent" (VConst CUnit) dec_empty ∅ [] (TConst CUnit))
+      <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |>.
+  Local Definition Πc1 : domains.view :=
+    enter_view (MkView "EffChild" (VSetter 0 0) dec_empty ∅ [] (TConst CUnit))
+      <| vw_effq ::= (λ q, q ++ [eff 0]) |>.
+  Local Definition Πc2 : domains.view :=
+    Πc1 <| vw_dec := Decisions false true |> <| vw_child := TConst CUnit |>.
+  Local Definition Πp2 : domains.view :=
+    Πp1 <| vw_dec := Decisions false true |> <| vw_child := TPath 1 |>.
+
+  (** ** The updater is pure *)
   Lemma upd_pure_to_false p :
     ⊢ upd_pure δ is_bool (to_false p) (λ _, vbool false).
   Proof.
@@ -123,19 +144,6 @@ Section parent_child.
   Qed.
 
   (** ** The run *)
-
-  (** Views along the run (paths 0 = Parent, 1 = Child). *)
-  Local Definition Πp1 : domains.view :=
-    enter_view (MkView "Parent" (VConst CUnit) dec_empty ∅ [] (TConst CUnit))
-      <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |>.
-  Local Definition Πc1 : domains.view :=
-    enter_view (MkView "EffChild" (VSetter 0 0) dec_empty ∅ [] (TConst CUnit))
-      <| vw_effq ::= (λ q, q ++ [eff 0]) |>.
-  Local Definition Πc2 : domains.view :=
-    Πc1 <| vw_dec := Decisions false true |> <| vw_child := TConst CUnit |>.
-  Local Definition Πp2 : domains.view :=
-    Πp1 <| vw_dec := Decisions false true |> <| vw_child := TPath 1 |>.
-
   Lemma parent_child_wp :
     own_cfg (machine_init_cfg eff_cross_prog []) -∗
     WP (cfg_expr (machine_init_cfg eff_cross_prog []) : expr (reactLang δ)) {{ w,

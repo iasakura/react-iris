@@ -1,12 +1,12 @@
 (** * Executable conformance tests for the interpreter.
 
-    Ports the running examples of the React-tRace paper and checks the
-    observable behavior (output buffer, hook state, displays, view counts)
-    by computation. These play the role of the react-trace test suite until
-    the differential-testing harness against the OCaml interpreter
-    ([vendor/react-trace]) is in place. *)
+    Runs the programs of [lang/programs.v] (the paper's running examples)
+    and checks the observable behavior (output buffer, hook state,
+    displays, view counts) by computation. These play the role of the
+    react-trace test suite until the differential-testing harness against
+    the OCaml interpreter ([vendor/react-trace]) is in place. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 
 Local Definition vint (n : Z) : val := VConst (CInt n).
 Local Definition vstr (s : string) : val := VConst (CString s).
@@ -26,28 +26,7 @@ Local Definition run_display (P : prog) (evs : list nat) : res dtree :=
 Local Definition run_nviews (P : prog) (evs : list nat) : res nat :=
   (λ c, map_size (c_mem c)) <$> run_prog FUEL P evs.
 
-(** ** Counter (§2.1): queued functional updates, update timing
-
-<<
-let Counter x =
-  print "Counter";
-  let (s, setS) = useState x in
-  print "Return";
-  [s, button (fun _ ->
-    setS (fun s -> s + 1);
-    setS (fun s -> print "Update"; s + 1))];;
-Counter 0
->> *)
-Definition counter_body : expr :=
-  (print: Str "Counter" ;;
-   let: "s", "setS" := useState "x" in
-   print: Str "Return" ;;
-   ⟪ "s";
-     λ: "_", "setS" (λ: "s", "s" + 1) ;;
-             "setS" (λ: "s", print: Str "Update" ;; "s" + 1) ⟫)%r.
-
-Definition counter_prog : prog :=
-  Prog [("Counter", CompDef "x" counter_body)] (Comp "Counter" 0)%r.
+(** ** Counter (§2.1): queued functional updates, update timing *)
 
 Example counter_wf : comp_def_wf (CompDef "x" counter_body) = true.
 Proof. vm_compute. reflexivity. Qed.
@@ -82,30 +61,9 @@ Example counter_two_clicks_state :
   run_state counter_prog [0; 0]%nat 0 0 = Ok (Some (vint 4)).
 Proof. vm_compute. reflexivity. Qed.
 
-(** ** SelfCounter (§2.2): an Effect creating an autonomous render cycle
-
-<<
-let SelfCounter x =
-  let (s, setS) = useState x in
-  print s;
-  useEffect (print "Effect"; if s < 3 then setS (fun s -> s + 1) else ());
-  print "Return";
-  [s];;
-SelfCounter 0
->>
-
+(** ** SelfCounter (§2.2): an Effect creating an autonomous render cycle.
     Expected console: 0 Return Effect 1 Return Effect 2 Return Effect
     3 Return Effect. *)
-Definition selfcounter_body : expr :=
-  (let: "s", "setS" := useState "x" in
-   print: "s" ;;
-   useEffect: (print: Str "Effect" ;;
-               if: "s" < 3 then "setS" (λ: "t", "t" + 1) else #()) ;;
-   print: Str "Return" ;;
-   ⟪ "s" ⟫)%r.
-
-Definition selfcounter_prog : prog :=
-  Prog [("SelfCounter", CompDef "x" selfcounter_body)] (Comp "SelfCounter" 0)%r.
 
 Example selfcounter_out :
   run_out selfcounter_prog [] =
@@ -122,38 +80,12 @@ Proof. vm_compute. reflexivity. Qed.
 (** ** Inf2 (§3.1.2): unconditional top-level setter call — an infinite
     retry loop. The unbounded semantics diverges; the interpreter reports
     fuel exhaustion (never a [Stuck], never an [Ok]). *)
-Definition inf2_body : expr :=
-  (let: "s", "setS" := useState "x" in
-   "setS" (λ: "t", "t") ;;
-   "s")%r.
-
-Definition inf2_prog : prog :=
-  Prog [("Inf2", CompDef "x" inf2_body)] (Comp "Inf2" 0)%r.
 
 Example inf2_diverges : run_prog FUEL inf2_prog [] = OOF.
 Proof. vm_compute. reflexivity. Qed.
 
 (** ** Demo (§4.3): retry during init, effect-driven re-render, and
-    reconciliation of the child view from () to a button.
-
-<<
-let Demo x =
-  let (s, setS) = useState x in
-  let f = fun s -> s + 1 in
-  if s = 0 then setS f else ();
-  useEffect (if s = 1 then setS f else ());
-  if s <= 1 then () else button (fun _ -> setS f);;
-Demo 0
->> *)
-Definition demo_body : expr :=
-  (let: "s", "setS" := useState "x" in
-   let: "f" := λ: "t", "t" + 1 in
-   (if: "s" = 0 then "setS" "f" else #()) ;;
-   useEffect: (if: "s" = 1 then "setS" "f" else #()) ;;
-   if: "s" ≤ 1 then #() else λ: "_", "setS" "f")%r.
-
-Definition demo_prog : prog :=
-  Prog [("Demo", CompDef "x" demo_body)] (Comp "Demo" 0)%r.
+    reconciliation of the child view from () to a button. *)
 
 (** Quiescent at s = 2 with the button mounted (paper's step (5)). *)
 Example demo_state : run_state demo_prog [] 0 0 = Ok (Some (vint 2)).
@@ -172,12 +104,6 @@ Proof. vm_compute. reflexivity. Qed.
 
 (** ** Bin (Fig. 2): recursive components, array views, fresh paths.
     Bin 2 mounts a complete binary tree: 1 + 2 + 4 = 7 views. *)
-Definition bin_body : expr :=
-  (if: "n" = 0 then #()
-   else ⟪ Comp "Bin" ("n" - 1); Comp "Bin" ("n" - 1) ⟫)%r.
-
-Definition bin_prog : prog :=
-  Prog [("Bin", CompDef "n" bin_body)] (Comp "Bin" 2)%r.
 
 Example bin_nviews : run_nviews bin_prog [] = Ok 7%nat.
 Proof. vm_compute. reflexivity. Qed.
@@ -191,39 +117,18 @@ Proof. vm_compute. reflexivity. Qed.
 (** ** Rules-of-React violations are [Stuck], not silent
 
     A child calling its parent's setter during render (scenario S12 of the
-    paper's test suite errors in both React and React-tRace). Here: Parent
+    paper's test suite errors in both React and React-tRace): Parent
     passes its setter to Child, and Child calls it at the top level of its
     body (Init phase, foreign path ⇒ APPSETCOMP inapplicable). *)
-Definition parent_body : expr :=
-  (let: "b", "setB" := useState true in
-   ⟪ Comp "Child" "setB" ⟫)%r.
-
-Definition child_body : expr :=
-  ("set" (λ: "t", "t") ;; #())%r.
-
-Definition cross_setter_prog : prog :=
-  Prog [("Parent", CompDef "x" parent_body); ("Child", CompDef "set" child_body)]
-       (Comp "Parent" #())%r.
 
 Example cross_setter_stuck :
   run_prog FUEL cross_setter_prog []
     = Stuck "setter of another component during render".
 Proof. vm_compute. reflexivity. Qed.
 
-(** ** Sibling update through an Effect (inter-component, Normal phase):
-    Child's effect updates Parent's state (allowed), Parent re-renders and
-    drops the Child (reconciliation ()-branch), Child's state is gone. *)
-Definition eff_parent_body : expr :=
-  (let: "b", "setB" := useState true in
-   if: "b" then Comp "EffChild" "setB" else #())%r.
-
-Definition eff_child_body : expr :=
-  (useEffect: "set" (λ: "_", false) ;; #())%r.
-
-Definition eff_cross_prog : prog :=
-  Prog [("Parent", CompDef "x" eff_parent_body);
-        ("EffChild", CompDef "set" eff_child_body)]
-       (Comp "Parent" #())%r.
+(** ** Parent / Child (§3.2): the child's effect updates the parent's state
+    (allowed, Normal phase), the parent re-renders and drops the child
+    (reconciliation ()-branch); the child's state is gone. *)
 
 Example eff_cross_state :
   run_state eff_cross_prog [] 0 0 = Ok (Some (VConst (CBool false))).

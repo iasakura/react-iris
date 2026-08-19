@@ -1,6 +1,8 @@
-(** * SelfCounter (§2.2): an Effect-driven autonomous render cycle,
-    verified from the hook rules and the runtime lemmas.
+(** * SelfCounter: the effect-driven render cycle converges at 3.
 
+    ** What is verified
+
+    The paper's SelfCounter ([selfcounter_prog], programs.v):
 <<
 let SelfCounter x =
   let (s, setS) = useState x in
@@ -10,6 +12,10 @@ let SelfCounter x =
   [s];;
 SelfCounter 0
 >>
+    [selfcounter_adequate]: the program never gets stuck, and if it
+    reaches a value it is quiescent, displaying 3, having printed exactly
+    the console of §2.2: 0 Return Effect 1 Return Effect 2 Return Effect
+    3 Return Effect.
 
     After mounting, the effect runs and (while [s < 3]) queues an
     update, which turns on Check; the re-render commits the folded state,
@@ -24,7 +30,7 @@ SelfCounter 0
     (setter call in Normal phase), and [wp_usestate_succ_pure] with a
     genuinely pure queue. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine tests.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -38,8 +44,11 @@ Section selfcounter.
   Local Definition δ : def_table := prog_def_table selfcounter_prog.
   Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
-  (** The effect body, and the closures the program creates: the effect
-      thunk registered at state [k] and the updater it queues. *)
+  (** ** Program-side data: what the run creates from [selfcounter_body]
+
+      The effect body, the effect thunk registered at state [k] (in the
+      body's environment [benv]), the updater it queues, and the function
+      that updater computes. *)
   Local Definition eff_body : syntax.expr :=
     (print: Str "Effect" ;; if: "s" < 3 then "setS" (λ: "t", "t" + 1) else #())%r.
   Local Definition benv (p : path) (k : Z) : env :=
@@ -49,6 +58,33 @@ Section selfcounter.
     VClos "t" ("t" + 1)%r (benv p k).
   Local Definition finc (v : domains.val) : domains.val :=
     match v with VConst (CInt n) => VConst (CInt (n + 1)) | _ => v end.
+
+  (** ** State-side data: the views along the cycle, and the outputs
+
+      [ΠA k]: the rendered view at state [k] with its effect pending —
+      slot 0 committed at [k] with an empty queue, the effect thunk
+      registered at [k] queued, Effect on, and the child [[k]].
+      [ΠF]: the final quiescent view. *)
+  Local Definition ΠA (k : Z) : domains.view :=
+    MkView "SelfCounter" (cint 0) (Decisions false true)
+      (<[0 := StEntry (cint k) []]> ∅) [eff 0 k] (TList [TConst (CInt k)]).
+  Local Definition ΠF : domains.view := ΠA 3 <| vw_dec ::= dec_rm_effect |>.
+
+  (** [A k ω]: the machine is about to commit the pending effect
+      (STEPEFFECT) with the memory holding [ΠA k] and output [ω]. *)
+  Local Definition A (k : Z) (ω : out_buf) : iProp Σ :=
+    mem_auth_frag (<[0 := ΠA k]> ∅) ∗ view_ptsto 0 (ΠA k) ∗ reg_token None ∗ out_frag ω.
+
+  Local Definition ω_mount : out_buf := [cint 0; VConst (CString "Return")].
+  Local Definition ω_cycle (k : Z) : out_buf :=
+    [VConst (CString "Effect"); cint (k + 1); VConst (CString "Return")].
+  Local Definition ω_final : out_buf :=
+    [cint 0; VConst (CString "Return"); VConst (CString "Effect");
+     cint 1; VConst (CString "Return"); VConst (CString "Effect");
+     cint 2; VConst (CString "Return"); VConst (CString "Effect");
+     cint 3; VConst (CString "Return"); VConst (CString "Effect")].
+
+  (** ** The updater is pure *)
 
   (** [λt. t+1] is a pure updater on integers — the obligation of
       [wp_usestate_succ_pure], discharged by symbolic execution with no
@@ -182,20 +218,6 @@ Section selfcounter.
 
   (** ** The render/effect cycle *)
 
-  (** The rendered view at state [k] with its effect pending: slot 0
-      committed at [k] with an empty queue, the effect thunk registered
-      at [k] queued, Effect on, and the child [[k]]. *)
-  Local Definition ΠA (k : Z) : domains.view :=
-    MkView "SelfCounter" (cint 0) (Decisions false true)
-      (<[0 := StEntry (cint k) []]> ∅) [eff 0 k] (TList [TConst (CInt k)]).
-
-  (** [A k ω]: the machine is about to commit the pending effect
-      (STEPEFFECT) with the memory holding [ΠA k] and output [ω]. *)
-  Local Definition A (k : Z) (ω : out_buf) : iProp Σ :=
-    mem_auth_frag (<[0 := ΠA k]> ∅) ∗ view_ptsto 0 (ΠA k) ∗ reg_token None ∗ out_frag ω.
-
-  Local Definition ω_cycle (k : Z) : out_buf :=
-    [VConst (CString "Effect"); cint (k + 1); VConst (CString "Return")].
 
   (** One cycle while [k < 3]: the effect runs and queues an update
       (Check), the re-render folds the state to [k+1] and registers a
@@ -275,8 +297,6 @@ Section selfcounter.
 
   (** The last round at [k = 3]: the effect runs (prints "Effect") but
       queues nothing; the check finds nothing to do; quiescence. *)
-  Local Definition ΠF : domains.view := ΠA 3 <| vw_dec ::= dec_rm_effect |>.
-
   Lemma last_round ω ks Φ :
     A 3 ω -∗
     (mem_auth_frag (<[0 := ΠF]> ∅) -∗ out_frag (ω ++ [VConst (CString "Effect")]) -∗
@@ -312,8 +332,6 @@ Section selfcounter.
   Qed.
 
   (** ** Mount *)
-  Local Definition ω_mount : out_buf := [cint 0; VConst (CString "Return")].
-
   Lemma mount Φ :
     own_cfg (machine_init_cfg selfcounter_prog []) -∗
     (A 0 ω_mount -∗
@@ -352,12 +370,6 @@ Section selfcounter.
   Qed.
 
   (** ** The whole run *)
-  Local Definition ω_final : out_buf :=
-    [cint 0; VConst (CString "Return"); VConst (CString "Effect");
-     cint 1; VConst (CString "Return"); VConst (CString "Effect");
-     cint 2; VConst (CString "Return"); VConst (CString "Effect");
-     cint 3; VConst (CString "Return"); VConst (CString "Effect")].
-
   Lemma selfcounter_wp :
     own_cfg (machine_init_cfg selfcounter_prog []) -∗
     WP (cfg_expr (machine_init_cfg selfcounter_prog []) : expr (reactLang δ)) {{ w,

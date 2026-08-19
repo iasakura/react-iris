@@ -1,15 +1,34 @@
-(** * Counter, end to end, from the runtime lemmas and the body
-    specifications — no whole-run computation.
+(** * Counter: every click trace, verified from the hook rules.
 
-    Mount, one click, re-render: the run is driven by
-    [wp_init_component] / [wp_check_component] / [wp_commit_effects] /
-    [wp_event_dispatch] (runtime.v) and the body and handler
-    specifications of hooks.v; the tree, memory, and output steps in
-    between are symbolic ([wp_pure]) and the final display is read off
-    the resulting memory. Compare [examples/counter.v], which obtains the
-    same conclusion by executing the machine ([wp_mrun_ok]). *)
+    ** What is verified
+
+    The paper's Counter ([counter_prog], programs.v):
+<<
+let Counter x =
+  print "Counter";
+  let (s, setS) = useState x in
+  print "Return";
+  [s, button (fun _ -> setS (fun s -> s + 1);
+                       setS (fun s -> print "Update"; s + 1))];;
+Counter 0
+>>
+    - [counter_trace_adequate]: for every trace of clicks, the machine
+      never gets stuck, and whenever it reaches a value it is quiescent
+      with display [2·|clicks|; handler] and output
+      ["Counter"; "Return"] ++ ["Counter"; "Update"; "Return"]^|clicks|;
+    - [counter_root_adequate]: Counter refines the abstract LTS
+      [counter_lts] (states ℤ, initial 0, the click adds 2, display shows
+      the state), through [root_adequacy] (component.v).
+
+    The proofs are driven by the runtime lemmas ([wp_init_component] /
+    [wp_check_component] / [wp_event_dispatch], runtime.v) and by
+    specifications of the Counter body and handler proved from the hook
+    rules (hooks.v); tree, memory, and output steps in between are
+    symbolic ([wp_pure]) — no whole-run computation. Compare
+    [examples/counter.v], which obtains a fixed-trace conclusion by
+    executing the machine ([wp_mrun_ok]). *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine tests.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy component.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
@@ -17,7 +36,7 @@ From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
-(** The abstract LTS refined by Counter. *)
+(** ** The specification: an abstract LTS *)
 Definition counter_lts : root_spec := {|
   rs_A := Z;
   rs_init a := a = 0%Z;
@@ -32,24 +51,60 @@ Section counter_modular.
   Local Definition δ : def_table := prog_def_table counter_prog.
   Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
-  (** ** The Counter body and handler, from the hook rules
+  (** ** Program-side data: what the run creates from [counter_body] *)
 
-      [counter_body] (tests.v):
-<<
-  print "Counter";
-  let (s, setS) = useState⁰ x in
-  print "Return";
-  [s, fun _ -> setS (fun s -> s + 1); setS (fun s -> print "Update"; s + 1)]
->> *)
-
-  (** The handler closure captures the current state [ns] and the
-      argument [nx] (equal on the initial render, distinct after
-      re-renders). *)
+  (** The handler closure rendered by the body: it captures the current
+      state [ns] and the argument [nx] (equal on the initial render,
+      distinct after re-renders). *)
   Definition counter_handler (p : path) (ns nx : Z) : domains.val :=
     VClos "_"
       ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r
       (env_insert "setS" (VSetter 0 p)
          (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])).
+
+  (** The two updaters a click queues on slot 0, in the handler's
+      environment. *)
+  Local Definition henv (p : path) (ns nx : Z) : env :=
+    env_insert "_" (VConst CUnit)
+      (env_insert "setS" (VSetter 0 p)
+         (env_insert "s" (cint ns) [("x", cint nx)])).
+  Local Definition cl1 (p : path) (ns nx : Z) : domains.val :=
+    VClos "s" ("s" + 1)%r (henv p ns nx).
+  Local Definition cl2 (p : path) (ns nx : Z) : domains.val :=
+    VClos "s" (print: Str "Update" ;; "s" + 1)%r (henv p ns nx).
+
+  (** ** State-side data: the quiescent view and the outputs
+
+      After mounting, and after every click cycle, the memory holds the
+      single Counter view [Π n]: state slot 0 committed at [n] with an
+      empty queue, no decisions, no pending effects, and the rendered
+      child [[n; handler]] where the handler closure captured [n]. *)
+  Local Definition hbody : syntax.expr :=
+    ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r.
+
+  Local Definition Π (n : Z) : domains.view :=
+    MkView "Counter" (cint 0) (Decisions false false)
+      (<[0 := StEntry (cint n) []]> ∅) []
+      (TList [TConst (CInt n);
+              TClos "_" hbody
+                (env_insert "setS" (VSetter 0 0)
+                   (env_insert "s" (cint n) [("x", cint 0)]))]).
+
+  (** The invariant across events: [Π n] in memory, output [ω]. *)
+  Local Definition I (n : Z) (ω : out_buf) : iProp Σ :=
+    mem_auth_frag (<[0 := Π n]> ∅) ∗ view_ptsto 0 (Π n) ∗ reg_token None ∗ out_frag ω.
+
+  Local Definition ω_mount : out_buf :=
+    [VConst (CString "Counter"); VConst (CString "Return")].
+  Local Definition ω_click : out_buf :=
+    [VConst (CString "Counter"); VConst (CString "Update"); VConst (CString "Return")].
+
+  Lemma display_Π n :
+    display_t 1000 (<[0 := Π n]> ∅) (TPath 0)
+      = Ok (DList [DConst (CInt n); DHandler]).
+  Proof. by vm_compute. Qed.
+
+  (** ** Specifications of the body and the handler, from the hook rules *)
 
   (** Init phase: prints "Counter", allocates slot 0 with the argument,
       prints "Return", and returns the view spec [[n; handler]]. *)
@@ -150,17 +205,6 @@ Section counter_modular.
     by iApply ("Hwp" with "Hm Hv Hr").
   Qed.
 
-  (** The two updaters queued by one click of the handler (hooks.v,
-      [counter_handler_spec]), with the handler's environment. *)
-  Local Definition henv (p : path) (ns nx : Z) : env :=
-    env_insert "_" (VConst CUnit)
-      (env_insert "setS" (VSetter 0 p)
-         (env_insert "s" (cint ns) [("x", cint nx)])).
-  Local Definition cl1 (p : path) (ns nx : Z) : domains.val :=
-    VClos "s" ("s" + 1)%r (henv p ns nx).
-  Local Definition cl2 (p : path) (ns nx : Z) : domains.val :=
-    VClos "s" (print: Str "Update" ;; "s" + 1)%r (henv p ns nx).
-
   (** Succ-phase body with the concrete click queue [cl1; cl2] on slot 0:
       "Counter", then the fold — the second updater prints "Update"
       during the render (the update-timing observation of §2.1) — then
@@ -195,37 +239,9 @@ Section counter_modular.
     by iApply ("Hwp" with "Hr Ho").
   Qed.
 
-  (** ** The component invariant across events
+  (** ** The runs *)
 
-      After mounting, and after every click cycle, the memory holds the
-      single Counter view [Π n]: state slot 0 committed at [n] with an
-      empty queue, no decisions, no pending effects, and the rendered
-      child [[n; handler]] where the handler closure captured [n]. *)
-  Local Definition hbody : syntax.expr :=
-    ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r.
-
-  Local Definition Π (n : Z) : domains.view :=
-    MkView "Counter" (cint 0) (Decisions false false)
-      (<[0 := StEntry (cint n) []]> ∅) []
-      (TList [TConst (CInt n);
-              TClos "_" hbody
-                (env_insert "setS" (VSetter 0 0)
-                   (env_insert "s" (cint n) [("x", cint 0)]))]).
-
-  Local Definition I (n : Z) (ω : out_buf) : iProp Σ :=
-    mem_auth_frag (<[0 := Π n]> ∅) ∗ view_ptsto 0 (Π n) ∗ reg_token None ∗ out_frag ω.
-
-  Local Definition ω_mount : out_buf :=
-    [VConst (CString "Counter"); VConst (CString "Return")].
-  Local Definition ω_click : out_buf :=
-    [VConst (CString "Counter"); VConst (CString "Update"); VConst (CString "Return")].
-
-  Lemma display_Π n :
-    display_t 1000 (<[0 := Π n]> ∅) (TPath 0)
-      = Ok (DList [DConst (CInt n); DHandler]).
-  Proof. by vm_compute. Qed.
-
-  (** ** Mount: from the initial configuration to the quiescent [I 0] *)
+  (** *** Mount: from the initial configuration to the quiescent [I 0] *)
   Lemma counter_mount evs Φ :
     own_cfg (machine_init_cfg counter_prog evs) -∗
     (I 0 ω_mount -∗
@@ -280,7 +296,7 @@ Section counter_modular.
     iApply "Hk". by iFrame.
   Qed.
 
-  (** ** One click: [I n] to [I (n+1+1)] *)
+  (** *** One click: [I n] to [I (n+1+1)] *)
   Lemma counter_click_step (n : Z) ω evs ks Φ :
     I n ω -∗
     (I (n + 1 + 1) (ω ++ ω_click) -∗
@@ -352,7 +368,7 @@ Section counter_modular.
     iApply "Hk". by iFrame.
   Qed.
 
-  (** ** Any click trace *)
+  (** *** Any click trace *)
   Lemma counter_run (evs : list nat) (n : Z) ω :
     Forall (λ i, i = 0%nat) evs →
     I n ω -∗

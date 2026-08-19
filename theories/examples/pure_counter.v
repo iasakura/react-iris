@@ -1,14 +1,16 @@
 (** * A pure Counter in model form: callbacks are abstract transitions,
     the display is a function of the abstract state.
 
+    ** What is verified
+
+    Counter without the printing updater ([pure_counter_body], programs.v):
 <<
 let Counter x =
   let (s, setS) = useState x in
   [s, button (fun _ -> setS (fun s -> s + 1); setS (fun s -> s + 1))];;
 >>
-
-    Unlike the paper's Counter (tests.v), the updaters here are pure, so
-    the model layer applies:
+    Unlike the paper's Counter, the updaters are pure, so the model layer
+    (model.v) applies:
 
     - [click_model]: the handler takes [model γ (cint n)] to
       [model γ (cint (n+2))] — the specification of the callback as a
@@ -23,7 +25,7 @@ let Counter x =
     model layer: its queue is not pure, so [slot_res] cannot be
     established — [upd_pure] is where the user obligation bites. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime model.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre.
@@ -31,18 +33,24 @@ From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
-Definition pure_counter_body : syntax.expr :=
-  (let: "s", "setS" := useState "x" in
-   ⟪ "s"; λ: "_", "setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1) ⟫)%r.
-
 Section pure_counter.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
   Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
+  (** ** Program-side data: what the run creates from [pure_counter_body]
+
+      The handler closure rendered at state [ns] (argument [nx]), and the
+      function computed by the updater [λs. s+1] it queues. *)
+  Definition handler (p : path) (ns nx : Z) : domains.val :=
+    VClos "_" ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1))%r
+      (env_insert "setS" (VSetter 0 p) (env_insert "s" (cint ns) [("x", cint nx)])).
+
   Definition finc (v : domains.val) : domains.val :=
     match v with VConst (CInt n) => VConst (CInt (n + 1)) | _ => v end.
+
+  (** ** The updater is pure *)
 
   Lemma finc_int v : is_int v → is_int (finc v).
   Proof. intros [n ->]. by exists (n + 1)%Z. Qed.
@@ -53,11 +61,6 @@ Section pure_counter.
     iIntros "!>" (v ks Φ [n ->]) "Hwp".
     do 5 wp_pure. by iApply "Hwp".
   Qed.
-
-  (** The handler closure rendered at state [ns] (argument [nx]). *)
-  Definition handler (p : path) (ns nx : Z) : domains.val :=
-    VClos "_" ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1))%r
-      (env_insert "setS" (VSetter 0 p) (env_insert "s" (cint ns) [("x", cint nx)])).
 
   (** ** The callback as an abstract transition: +2 *)
   Lemma click_model γ (n ns nx : Z) p π ent m ks Φ :
