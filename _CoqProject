@@ -15,7 +15,7 @@ theories/logic/step_rules.v
 theories/logic/runtime_rules.v
 theories/logic/hooks.v
 theories/logic/runtime.v
-theories/logic/model.v
+theories/logic/slots.v
 theories/logic/adequacy.v
 theories/logic/component.v
 theories/examples/counter.v

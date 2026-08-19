@@ -21,7 +21,7 @@ Class reactGpreS (Σ : gFunctors) := ReactGpreS {
   react_pre_mem :: ghost_mapG Σ path domains.view;
   react_pre_reg :: ghost_varG Σ (option (path * domains.view));
   react_pre_out :: ghost_varG Σ out_buf;
-  react_pre_model :: ghost_varG Σ domains.val;
+  react_pre_slot :: ghost_varG Σ domains.val;
 }.
 
 Definition reactΣ : gFunctors :=

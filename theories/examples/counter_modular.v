@@ -170,7 +170,7 @@ Section counter_modular.
       register) on the mounted view: enqueues both updaters on slot 0
       and turns on Check — the machine content of "the callback is a
       transition (+2) of the abstract state", to be lifted to a ghost
-      model in the component layer. *)
+      ghost slot in the component layer. *)
   Lemma counter_handler_spec (ns nx : Z) p π ent m ks Φ :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →

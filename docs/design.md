@@ -206,7 +206,7 @@ conformance check.
   `(p,ℓ) ↦val v`, `(p,ℓ) ↦sttq [cl]`. View-record updates via
   coq-record-update.
 - User-facing abstractions on top:
-  - `model γ a` — abstract state attached to a hook instance (user-chosen
+  - `slot_ptsto γ a` — abstract state attached to a hook instance (user-chosen
     RA). Represents the "logical current value" after the STTREBIND fold.
   - `isSetter s γ` — persistent knowledge that a closure is the setter.
   - `effRegistered p I` — proof-obligation token for a registered effect.
@@ -216,7 +216,7 @@ conformance check.
 - Key constraint: **render bodies are re-evaluated arbitrarily often**
   (retry, check, reconcile). Hence render-body specifications must be
   *idempotent*, of the shape
-  `□ (model γ a -∗ WP body {s. model γ a ∗ view_ok a s})`
+  `□ (slot_ptsto γ a -∗ WP body {s. slot_ptsto γ a ∗ view_ok a s})`
   (the logical counterpart of Stability, Def 12). Handler closures are
   invoked at adversarial times, so their specs are persistent, with
   resources supplied through invariants.
@@ -287,7 +287,7 @@ Theorem component_adequacy :
     every quiescent state satisfies ∃ a, M.reachable a ∧ display = V a.
 ```
 
-This makes RQ2's "display is a function of the abstract model; callbacks are
+This makes RQ2's "display is a function of the abstract state; callbacks are
 abstract transitions" the top-level claim itself.
 
 ---
@@ -300,12 +300,12 @@ abstract transitions" the top-level claim itself.
 
 - Mount (Init):
   `{slot p free} let (x, set) = useState e in k
-   {∃γ. model γ v₀ ∗ isSetter set γ ∗ …}` — slot + ghost allocation.
-- Re-render (Succ): STTREBIND reads the folded `model γ a` and continues with
+   {∃γ. slot_ptsto γ v₀ ∗ isSetter set γ ∗ …}` — slot + ghost allocation.
+- Re-render (Succ): STTREBIND reads the folded `slot_ptsto γ a` and continues with
   `x = a`. **The queue contents are never exposed to the user** (only the
   folded logical value).
 - Setter call (Normal):
-  `isSetter set γ ∗ updPure f f̂ ⊢ {model γ a} set f {model γ (f̂ a)}`
+  `isSetter set γ ∗ updPure f f̂ ⊢ {slot_ptsto γ a} set f {slot_ptsto γ (f̂ a)}`
   - `updPure f f̂`: the **user obligation** that applying the closure f
     computes the meta-function f̂ deterministically and without side effects
     (the logical form of Def 3). Without it (a) the STTREBIND fold could
@@ -338,7 +338,7 @@ updater purity / render purity (from M4 on: no external-store writes; in M5
 it becomes the premise for interruptibility) / measures for effect-driven
 re-renders / deps completeness / cleanup return.
 
-**Status (M3, first instalment — `logic/hooks.v`, `logic/model.v`).**
+**Status (M3, first instalment — `logic/hooks.v`, `logic/slots.v`).**
 Realized as follows:
 
 - `updPure` is `upd_pure D cl f`: the updater closure computes the
@@ -354,11 +354,11 @@ Realized as follows:
   and gets the Effect decision iff the value changed. The paper's Counter,
   whose second updater prints, is handled only by concrete symbolic
   execution of that queue (`counter_body_succ_click`).
-- `model γ a` is the client half of a ghost variable holding the logical
+- `slot_ptsto γ a` is the client half of a ghost variable holding the logical
   value; `slot_res D γ ent` is the runtime half tied to the physical slot
   (pure queue realized by `fs`, ghost = `fold fs committed`).
-  `wp_setter_normal_model`: `model γ a` ↦ `model γ (f a)` while enqueuing
-  `f`; `wp_usestate_succ_model`: the body binds exactly `a`, the model is
+  `wp_setter_normal_slot`: `slot_ptsto γ a` ↦ `slot_ptsto γ (f a)` while enqueuing
+  `f`; `wp_usestate_succ_slot`: the body binds exactly `a`, the logical value is
   unchanged (rendering never changes the logical state).
 - `isSetter` is not yet a separate assertion: setter identity is currently
   the closure value `VSetter ℓ p` itself (static labels, D2 phase 1).
@@ -383,7 +383,7 @@ component_spec C (M : LTS A) (V : A → ViewSpec → iProp) :=
        □ {R a} h () @ Normal {∃ a', ⌜M.step a (label h) a'⌝ ∗ R a'} *)
 ```
 
-- R bundles the hooks' `model γ` and invariants, tying them to the abstract
+- R bundles the hooks' `slot_ptsto γ` and invariants, tying them to the abstract
   state a.
 - Handlers are chosen adversarially (in any quiescent state), hence
   persistent specs.
@@ -400,9 +400,9 @@ for every click trace, never stuck, display `2·|evs|`, exact output;
 `counter_click_step` is the concrete form of "the callback is the +2
 transition") and `examples/selfcounter.v` (`selfcounter_adequate`: the
 effect-driven cycle converges at 3 with the exact console of §2.2). In
-model form: `examples/pure_counter.v` (`click_model`:
-`{model γ n} click {model γ (n+2)}`; `body_succ_model`: display `[a; h]`
-from `model γ a`). Adequacy with the final physical state is
+slot form: `examples/pure_counter.v` (`click_spec`:
+`{slot_ptsto γ n} click {slot_ptsto γ (n+2)}`; `body_succ_spec`: display `[a; h]`
+from `slot_ptsto γ a`). Adequacy with the final physical state is
 `react_adequacy_state`.
 
 ### RQ3: Custom hooks as modules, and their modular specification
@@ -465,7 +465,7 @@ hookSpec useFoo :=
   store-reading pattern tears under concurrency, and a proof that
   useSyncExternalStore's consistency check restores the refinement.
 - API specs: `startTransition f` enqueues on the transition lane
-  (`{model γ a} … {pendingTransition γ …}`), a display spec for `isPending`,
+  (`{slot_ptsto γ a} … {pendingTransition γ …}`), a display spec for `isPending`,
   and the scheduler property that urgent updates are not blocked by
   transitions (no priority inversion). Since React itself has no formal
   spec here, theorems are stated **parametrically over a family of
@@ -493,7 +493,7 @@ hookSpec useFoo :=
 | M0 | Infra: `_CoqProject` + Makefile, CI, rocq-mcp flow, vendored react-trace | Iris imports build (sanity done), CI green |
 | M1 | L0/L1: syntax, semantic objects, small-step machine, executable interpreter | Ported react-trace tests agree under `vm_compute`. Array-free fragment first → arrays & recursive views |
 | M2 | L2: language instance, state interp, WP, adequacy, basic points-tos | Safety (not stuck) + display spec proved for Counter |
-| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, model layer, runtime lemmas, Counter trace theorem, SelfCounter cycle |
+| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, slot layer, runtime lemmas, Counter trace theorem, SelfCounter cycle |
 | M4 | Refs + mini-jotai + synchronous useSyncExternalStore theorem | Eventual-consistency proof for the jotai pattern |
 | M5 | Concurrent machine + refinement theorem + useTransition / Suspense specs | Purity ⇒ refinement; tearing counterexample and recovery via uSES |
 | M6 | FiberLang implementation refinement (stretch) | Forward simulation for synchronous mode |

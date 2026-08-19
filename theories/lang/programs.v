@@ -161,7 +161,7 @@ Definition eff_cross_prog : prog :=
        (Comp "Parent" #())%r.
 
 (** ** A pure Counter — Counter without the printing updater, so that the
-    model layer applies
+    slot layer applies
 
 <<
 let Counter x =
