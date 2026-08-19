@@ -419,6 +419,20 @@ slot form: `examples/pure_counter.v` (`click_spec`:
 from `latest_state γ a`). Adequacy with the final physical state is
 `react_adequacy_state`.
 
+**Status (M3, second instalment — the generic render loop).** The root
+LTS refinement is generic: `logic/component.v` (`root_spec`,
+`root_obligations`, `root_adequacy`) and, for *leaf* roots (one
+component, path-free children, no effects), `logic/root.v` runs the
+machine's whole render loop once and for all: `leaf_root_obligations`
+derives the `root_obligations` from three hook-level specifications
+(body in Init, handlers, body in Succ), with display and handler lookup
+computed generically for path-free children. `examples/counter_leaf.v`
+re-derives the Counter refinement (`counter_leaf_adequate` =
+`counter_root_adequate`) with *no hand-proved run lemmas* — only the
+body/handler specs of `counter_modular.v`. Not yet done: non-leaf roots
+(component children, effect queues at the root), and deriving the
+handler obligation from a `handlers_ok`-style iteration over the view.
+
 ### RQ3: Custom hooks as modules, and their modular specification
 
 The specification of a custom hook `useFoo` is a triple:
@@ -507,7 +521,7 @@ hookSpec useFoo :=
 | M0 | Infra: `_CoqProject` + Makefile, CI, rocq-mcp flow, vendored react-trace | Iris imports build (sanity done), CI green |
 | M1 | L0/L1: syntax, semantic objects, small-step machine, executable interpreter | Ported react-trace tests agree under `vm_compute`. Array-free fragment first → arrays & recursive views |
 | M2 | L2: language instance, state interp, WP, adequacy, basic points-tos | Safety (not stuck) + display spec proved for Counter |
-| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, slot layer, runtime lemmas, Counter trace theorem, SelfCounter cycle |
+| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, slot layer, runtime lemmas, Counter trace theorem, SelfCounter cycle, cursor semantics + "WP ⇒ Rules of Hooks" + custom hook specified once, generic root render loop for leaf components |
 | M4 | Refs + mini-jotai + synchronous useSyncExternalStore theorem | Eventual-consistency proof for the jotai pattern |
 | M5 | Concurrent machine + refinement theorem + useTransition / Suspense specs | Purity ⇒ refinement; tearing counterexample and recovery via uSES |
 | M6 | FiberLang implementation refinement (stretch) | Forward simulation for synchronous mode |
