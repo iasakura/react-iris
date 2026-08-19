@@ -25,12 +25,12 @@ See [docs/design.md](docs/design.md) for the design document and roadmap.
   `wp_bind`, and adequacy (`theories/logic/{inst,lifting,adequacy}.v`).
 - **M3 in progress.** Redex rules for every machine step, a hook layer
   with the updater-purity obligation (`hooks.v`), runtime lemmas
-  (`runtime.v`), a model layer for the logical values of hook slots
-  (`model.v`), and root component specifications as refinements of an
+  (`runtime.v`), a slot layer for the logical values of hook slots
+  (`slots.v`), and root component specifications as refinements of an
   abstract LTS (`component.v`). Verified examples: Counter (a trace
   theorem: for every click trace, safe and displaying twice the number
   of clicks), SelfCounter (the effect-driven cycle), Parent/Child, and a
-  pure Counter in model form (`theories/examples/`).
+  pure Counter in slot form (`theories/examples/`).
 
 See the roadmap in [docs/design.md](docs/design.md) §6.
 
@@ -55,7 +55,7 @@ theories/
   prelude.v      common imports and options
   lang/          syntax, semantic domains, executable interpreter, machine, tests
   logic/         Iris language instance, lifting, redex rules, hook layer,
-                 runtime lemmas, model layer, component specs, adequacy
+                 runtime lemmas, slot layer, component specs, adequacy
   examples/      verified example components
 docs/design.md   design document
 vendor/react-trace  reference interpreter (oracle for differential tests)
