@@ -1,5 +1,7 @@
 (** * A custom hook, specified once and used modularly.
 
+    The program ([programs.v]):
+
 <<
 let Comp x =
   let useCounter = fun init ->
@@ -7,7 +9,7 @@ let Comp x =
     fun sel -> if sel then c else (fun _ -> setC (fun v -> v + 1)) in
   let r = useCounter x in
   let (t, setT) = useState 0 in
-  [r true; t; r false; fun _ -> setT (fun v -> v + 10)]
+  [r true, t, r false, button (fun _ -> setT (fun v -> v + 10))]
 >>
 
     [useCounter] is an ordinary function containing a hook (there are no
@@ -17,16 +19,18 @@ let Comp x =
     called — slot 0 here — and the component's own [useState] the next
     one.
 
-    The hook is specified once, in Init and Succ phase
-    ([useCounter_init], [useCounter_succ]): from the render context, it
-    consumes one slot at the cursor and returns its selector closure,
-    with the count bound to the slot's (folded) value. The component body
-    specifications ([comp_init], [comp_succ]) are then proved *from these
-    specifications alone*, without unfolding the hook's body — the module
-    discipline of design.md §5.3 (the slot count is exposed as [S (vw_cur
-    π)]; hiding it behind an abstract hook context is future work). *)
+    What is verified:
+    - [useCounter_init], [useCounter_succ]: the hook's specifications,
+      proved once — from the render context, it consumes one slot at the
+      cursor and returns its selector closure, with the count bound to the
+      slot's (folded) value;
+    - [comp_init], [comp_succ]: the component body's specifications,
+      proved *from the hook's specifications alone*, without unfolding
+      the hook's body — the module discipline of design.md §5.3 (the slot
+      count is exposed as [S (vw_cur π)]; hiding it behind an abstract
+      hook context is future work). *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation interp machine.
+From react_iris.lang Require Import syntax domains notation programs interp machine.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre.
@@ -34,21 +38,13 @@ From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
-Definition useCounter_body : syntax.expr :=
-  (let: "c", "setC" := useState "init" in
-   λ: "sel", if: "sel" then "c" else λ: "_", "setC" (λ: "v", "v" + 1))%r.
-
-Definition comp_body : syntax.expr :=
-  (let: "useCounter" := λ: "init", useCounter_body in
-   let: "r" := "useCounter" "x" in
-   let: "t", "setT" := useState 0 in
-   ⟪ "r" true; "t"; "r" false; λ: "_", "setT" (λ: "v", "v" + 10) ⟫)%r.
-
 Section custom_hook.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
   Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
+
+  (** ** Program-side data: the closure the hook returns *)
 
   (** The selector closure returned by the hook: count [c], slot [l] at
       path [p], defined in the environment [σ]. *)

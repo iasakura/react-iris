@@ -171,3 +171,93 @@ let Counter x =
 Definition pure_counter_body : expr :=
   (let: "s", "setS" := useState "x" in
    ⟪ "s"; λ: "_", "setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1) ⟫)%r.
+
+(** ** Cursor semantics (design decision D2): hooks are identified by their
+    position among the hook calls of a render, not by a syntactic label *)
+
+(** *** Cond (§1) — a hook under a conditional: a Rules-of-Hooks violation
+
+<<
+let Cond x =
+  let (b, setB) = useState false in
+  if b then (let (s, setS) = useState 0 in s)
+  else button (fun _ -> setB (fun b -> not b));;
+Cond ()
+>>
+
+    The first render calls one hook; after the click the re-render calls
+    a second one, for which no slot exists — the machine is stuck. *)
+Definition cond_body : expr :=
+  (let: "b", "setB" := useState false in
+   if: "b" then (let: "s", "setS" := useState 0 in "s")
+   else λ: "_", "setB" (λ: "b", ¬ "b"))%r.
+
+Definition cond_prog : prog :=
+  Prog [("Cond", CompDef "x" cond_body)] (Comp "Cond" #())%r.
+
+(** *** Two hooks — slots by call order (0 then 1); the labels (7, 3) are
+    deliberately not in order and are ignored
+
+<<
+let Two x =
+  let (a, setA) = useState 1 in
+  let (b, setB) = useState 2 in
+  [a, b, button (fun _ -> setB (fun v -> v + 10))];;
+Two ()
+>> *)
+Definition two_body : expr :=
+  (EUseState 7 "a" "setA" 1
+    (EUseState 3 "b" "setB" 2
+      ⟪ "a"; "b"; λ: "_", "setB" (λ: "v", "v" + 10) ⟫))%r.
+
+Definition two_prog : prog :=
+  Prog [("Two", CompDef "x" two_body)] (Comp "Two" #())%r.
+
+(** *** A custom hook (tests) — a function containing a hook, called from
+    the body; its hook takes slot 0, the component's own hook slot 1
+
+<<
+let Comp x =
+  let useDouble = fun init -> (let (c, setC) = useState init in c + c) in
+  let d = useDouble x in
+  let (s, setS) = useState 0 in
+  [d, s, button (fun _ -> setS (fun v -> v + 1))];;
+Comp 21
+>> *)
+Definition custom_body : expr :=
+  (let: "useDouble" := λ: "init", (let: "c", "setC" := useState "init" in "c" + "c") in
+   let: "d" := "useDouble" "x" in
+   let: "s", "setS" := useState 0 in
+   ⟪ "d"; "s"; λ: "_", "setS" (λ: "v", "v" + 1) ⟫)%r.
+
+Definition custom_prog : prog :=
+  Prog [("Comp", CompDef "x" custom_body)] (Comp "Comp" 21)%r.
+
+(** *** useCounter — a custom hook specified once and used modularly
+    ([examples/custom_hook.v])
+
+<<
+let Comp x =
+  let useCounter = fun init ->
+    let (c, setC) = useState init in
+    fun sel -> if sel then c else (fun _ -> setC (fun v -> v + 1)) in
+  let r = useCounter x in
+  let (t, setT) = useState 0 in
+  [r true, t, r false, button (fun _ -> setT (fun v -> v + 10))];;
+Comp 0
+>>
+
+    There are no tuples in the language, so the hook returns a selector
+    closure: [r true] is the count, [r false] the increment handler. *)
+Definition useCounter_body : expr :=
+  (let: "c", "setC" := useState "init" in
+   λ: "sel", if: "sel" then "c" else λ: "_", "setC" (λ: "v", "v" + 1))%r.
+
+Definition comp_body : expr :=
+  (let: "useCounter" := λ: "init", useCounter_body in
+   let: "r" := "useCounter" "x" in
+   let: "t", "setT" := useState 0 in
+   ⟪ "r" true; "t"; "r" false; λ: "_", "setT" (λ: "v", "v" + 10) ⟫)%r.
+
+Definition useCounter_prog : prog :=
+  Prog [("Comp", CompDef "x" comp_body)] (Comp "Comp" 0)%r.

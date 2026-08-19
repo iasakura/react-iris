@@ -1,5 +1,19 @@
 (** * Rules of Hooks: a violator has no weakest-precondition proof.
 
+    The program ([programs.v]):
+
+<<
+let Cond x =
+  let (b, setB) = useState false in
+  if b then (let (s, setS) = useState 0 in s)
+  else button (fun _ -> setB (fun b -> not b));;
+Cond ()
+>>
+
+    What is verified: [cond_not_adequate] — for every postcondition φ,
+    the run of [Cond] with one click is not adequate; hence no WP proof
+    of it exists.
+
     Under cursor semantics (design decision D2) hooks are identified by
     their position among the hook calls of a render. The paper's [Cond]
     (§1) calls a second [useState] only after its state has been toggled,
@@ -10,9 +24,9 @@
     the concrete content of "WP ⇒ Rules of Hooks": the syntactic Rules of
     Hooks are not assumed; a program that breaks them is simply
     unverifiable, and one that respects them (all other examples,
-    including a custom hook: tests.v [custom_prog]) is verifiable. *)
+    including a custom hook, [custom_hook.v]) is verifiable. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine tests.
+From react_iris.lang Require Import syntax domains programs interp machine.
 From react_iris.logic Require Import inst stuck.
 From iris.program_logic Require Import adequacy.
 

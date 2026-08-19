@@ -256,25 +256,12 @@ Proof. vm_compute. reflexivity. Qed.
 Example eff_cross_display : run_display eff_cross_prog [] = Ok (DConst CUnit).
 Proof. vm_compute. reflexivity. Qed.
 
-(** ** Cursor semantics (design decision D2)
+(** ** Cursor semantics (design decision D2): [cond_prog], [two_prog],
+    [custom_prog] *)
 
-    Hooks are identified by their position among the hook calls of a
-    render, not by the syntactic label. *)
-
-(** [Cond] (§1 of the paper): a hook under a conditional. The first
-    render calls one hook; after the click the re-render calls a second
-    one, for which no slot exists — the machine is stuck ("Rules of
-    Hooks"). The program is rejected by [body_ok] syntactically; the
-    semantics catches the violation dynamically, which is what a "WP ⇒
-    Rules of Hooks" theorem builds on. *)
-Definition cond_body : expr :=
-  (let: "b", "setB" := useState false in
-   if: "b" then (let: "s", "setS" := useState 0 in "s")
-   else λ: "_", "setB" (λ: "b", ¬ "b"))%r.
-
-Definition cond_prog : prog :=
-  Prog [("Cond", CompDef "x" cond_body)] (Comp "Cond" #())%r.
-
+(** [Cond] is rejected by [body_ok] syntactically; the semantics catches
+    the violation dynamically ("Rules of Hooks"), which is what the
+    "WP ⇒ Rules of Hooks" theorem ([examples/rules_of_hooks.v]) builds on. *)
 Example cond_not_wf : comp_def_wf (CompDef "x" cond_body) = false.
 Proof. vm_compute. reflexivity. Qed.
 
@@ -286,16 +273,7 @@ Example cond_click_stuck :
     = Stuck "Rules of Hooks: more hooks than in the previous render".
 Proof. vm_compute. reflexivity. Qed.
 
-(** Two hooks: slots by call order (0 then 1); the second setter updates
-    slot 1. Labels are ignored (here deliberately not in order). *)
-Definition two_body : expr :=
-  (EUseState 7 "a" "setA" 1
-    (EUseState 3 "b" "setB" 2
-      ⟪ "a"; "b"; λ: "_", "setB" (λ: "v", "v" + 10) ⟫))%r.
-
-Definition two_prog : prog :=
-  Prog [("Two", CompDef "x" two_body)] (Comp "Two" #())%r.
-
+(** Two hooks: the second setter updates slot 1; labels are ignored. *)
 Example two_slots :
   run_state two_prog [0%nat] 0 0 = Ok (Some (vint 1)) ∧
   run_state two_prog [0%nat] 0 1 = Ok (Some (vint 12)).
@@ -306,17 +284,7 @@ Example two_display :
     = Ok (DList [DConst (CInt 1); DConst (CInt 12); DHandler]).
 Proof. vm_compute. reflexivity. Qed.
 
-(** A custom hook: a function containing a hook, called from the body.
-    Its hook takes slot 0; the component's own hook takes slot 1. *)
-Definition custom_body : expr :=
-  (let: "useDouble" := λ: "init", (let: "c", "setC" := useState "init" in "c" + "c") in
-   let: "d" := "useDouble" "x" in
-   let: "s", "setS" := useState 0 in
-   ⟪ "d"; "s"; λ: "_", "setS" (λ: "v", "v" + 1) ⟫)%r.
-
-Definition custom_prog : prog :=
-  Prog [("Comp", CompDef "x" custom_body)] (Comp "Comp" 21)%r.
-
+(** A custom hook: its hook takes slot 0; the component's own hook slot 1. *)
 Example custom_slots :
   run_state custom_prog [0%nat] 0 0 = Ok (Some (vint 21)) ∧
   run_state custom_prog [0%nat] 0 1 = Ok (Some (vint 1)).
