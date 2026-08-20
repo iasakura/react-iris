@@ -4,8 +4,9 @@
     is the fold of its (pure) update queue over its committed value —
     what the next render will see. We give it a ghost variable:
 
-    - [slot_ptsto γ a] — the client's half: "the logical value of the
-      slot is [a]". This is what component specifications talk about
+    - [next_state γ a] — the client's half: "the value the next render
+      of this slot will bind is [a]". This is what component
+      specifications talk about
       ("the display is a function of [a]", "the callback takes [a] to
       [f a]").
     - [slot_res D γ ent] — the runtime's half, tied to the physical slot
@@ -15,7 +16,7 @@
     Rules:
     - [slot_alloc]: mounting a hook allocates the ghost pair;
     - [wp_setter_normal_slot]: a setter call with a pure updater [f]
-      takes [slot_ptsto γ a] to [slot_ptsto γ (f a)] — the abstract
+      takes [next_state γ a] to [next_state γ (f a)] — the abstract
       transition — while enqueuing [f] physically;
     - [wp_usestate_succ_slot]: on re-render the hook binds exactly the
       logical value [a], commits it, flushes the queue, and the logical
@@ -24,7 +25,7 @@
       committed value.
 
     The purity obligation ([upd_pure]) is exactly what makes the fold —
-    and hence [slot_ptsto] — well defined; an impure updater (e.g. the
+    and hence [next_state] — well defined; an impure updater (e.g. the
     printing one of the paper's Counter) cannot enter [slot_res]. *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains interp machine.
@@ -41,7 +42,7 @@ Section slots.
 
   Implicit Types Φ : mval → iProp Σ.
 
-  Definition slot_ptsto (γ : gname) (a : domains.val) : iProp Σ := ghost_var γ (1/2) a.
+  Definition next_state (γ : gname) (a : domains.val) : iProp Σ := ghost_var γ (1/2) a.
 
   Definition slot_res (D : domains.val → Prop) (γ : gname) (ent : st_entry) : iProp Σ :=
     ∃ fs, ⌜D (st_val ent)⌝ ∗ queue_pure δ D (st_queue ent) fs ∗
@@ -54,7 +55,7 @@ Section slots.
 
   (** Mounting a slot at [v] allocates its ghost pair. *)
   Lemma slot_alloc (D : domains.val → Prop) (v : domains.val) :
-    D v → ⊢ |==> ∃ γ, slot_ptsto γ v ∗ slot_res D γ (StEntry v []).
+    D v → ⊢ |==> ∃ γ, next_state γ v ∗ slot_res D γ (StEntry v []).
   Proof.
     iIntros (HD).
     iMod (ghost_var_alloc v) as (γ) "Hγ".
@@ -66,9 +67,9 @@ Section slots.
   Qed.
 
   (** With an empty queue the logical value is the committed value. *)
-  Lemma slot_ptsto_committed (D : domains.val → Prop) (γ : gname)
+  Lemma next_state_committed (D : domains.val → Prop) (γ : gname)
       (a v : domains.val) :
-    slot_ptsto γ a -∗ slot_res D γ (StEntry v []) -∗ ⌜a = v⌝.
+    next_state γ a -∗ slot_res D γ (StEntry v []) -∗ ⌜a = v⌝.
   Proof.
     iIntros "Hm (%fs & _ & [_ Hq] & Hγ)".
     iDestruct (big_sepL2_nil_inv_l with "Hq") as %->.
@@ -80,8 +81,8 @@ Section slots.
       (a : domains.val) (ent : st_entry) (cl : domains.val)
       (f : domains.val → domains.val) :
     (∀ v, D v → D (f v)) →
-    upd_pure δ D cl f -∗ slot_ptsto γ a -∗ slot_res D γ ent ==∗
-    slot_ptsto γ (f a) ∗ slot_res D γ (ent <| st_queue ::= (λ q, q ++ [cl]) |>).
+    upd_pure δ D cl f -∗ next_state γ a -∗ slot_res D γ ent ==∗
+    next_state γ (f a) ∗ slot_res D γ (ent <| st_queue ::= (λ q, q ++ [cl]) |>).
   Proof.
     iIntros (Hf) "Hcl Hm (%fs & %HD & [%Hdom Hq] & Hγ)".
     iDestruct (ghost_var_agree with "Hm Hγ") as %->.
@@ -104,11 +105,11 @@ Section slots.
     vw_sttst π !! l = Some ent →
     (∀ v, D v → D (f v)) →
     upd_pure δ D (VClos xi ei σi) f -∗
-    slot_ptsto γ a -∗ slot_res D γ ent -∗
+    next_state γ a -∗ slot_res D γ ent -∗
     mem_auth_frag m -∗ view_ptsto p' π -∗ reg_token None -∗
     ▷ (let ent' := ent <| st_queue ::= (λ q, q ++ [VClos xi ei σi]) |> in
        let π' := π <| vw_dec ::= dec_add_check |> <| vw_sttst ::= insert l ent' |> in
-       slot_ptsto γ (f a) -∗ slot_res D γ ent' -∗
+       next_state γ (f a) -∗ slot_res D γ ent' -∗
        mem_auth_frag (<[p':=π']> m) -∗ view_ptsto p' π' -∗ reg_token None -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal (VClos xi ei σi), KAppR PNormal (VSetter l p') :: ks)
@@ -127,9 +128,9 @@ Section slots.
       (σb : env) (p : path) (π : domains.view) (ent : st_entry)
       (ks : list machine.frame) Φ :
     vw_sttst π !! l = Some ent →
-    slot_ptsto γ a -∗ slot_res D γ ent -∗
+    next_state γ a -∗ slot_res D γ ent -∗
     render_ctx p π -∗
-    (slot_ptsto γ a -∗ slot_res D γ (StEntry a []) -∗
+    (next_state γ a -∗ slot_res D γ (StEntry a []) -∗
      render_ctx p (commit_slot π l (st_val ent) a) -∗
      WP ((FExpr PSucc (env_insert xset (VSetter l p) (env_insert x a σb)) e2, ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
@@ -153,7 +154,7 @@ Section slots.
       (π : domains.view) (ks : list machine.frame) Φ :
     D v →
     render_ctx p π -∗
-    ▷ (∀ γ, slot_ptsto γ v -∗ slot_res D γ (StEntry v []) -∗
+    ▷ (∀ γ, next_state γ v -∗ slot_res D γ (StEntry v []) -∗
        render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |>) -∗
        WP ((FExpr PInit (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗

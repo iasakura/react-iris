@@ -206,7 +206,7 @@ conformance check.
   `(p,ℓ) ↦val v`, `(p,ℓ) ↦sttq [cl]`. View-record updates via
   coq-record-update.
 - User-facing abstractions on top:
-  - `slot_ptsto γ a` — abstract state attached to a hook instance (user-chosen
+  - `next_state γ a` — abstract state attached to a hook instance (user-chosen
     RA). Represents the "logical current value" after the STTREBIND fold.
   - `isSetter s γ` — persistent knowledge that a closure is the setter.
   - `effRegistered p I` — proof-obligation token for a registered effect.
@@ -216,7 +216,7 @@ conformance check.
 - Key constraint: **render bodies are re-evaluated arbitrarily often**
   (retry, check, reconcile). Hence render-body specifications must be
   *idempotent*, of the shape
-  `□ (slot_ptsto γ a -∗ WP body {s. slot_ptsto γ a ∗ view_ok a s})`
+  `□ (next_state γ a -∗ WP body {s. next_state γ a ∗ view_ok a s})`
   (the logical counterpart of Stability, Def 12). Handler closures are
   invoked at adversarial times, so their specs are persistent, with
   resources supplied through invariants.
@@ -300,12 +300,12 @@ abstract transitions" the top-level claim itself.
 
 - Mount (Init):
   `{slot p free} let (x, set) = useState e in k
-   {∃γ. slot_ptsto γ v₀ ∗ isSetter set γ ∗ …}` — slot + ghost allocation.
-- Re-render (Succ): STTREBIND reads the folded `slot_ptsto γ a` and continues with
+   {∃γ. next_state γ v₀ ∗ isSetter set γ ∗ …}` — slot + ghost allocation.
+- Re-render (Succ): STTREBIND reads the folded `next_state γ a` and continues with
   `x = a`. **The queue contents are never exposed to the user** (only the
   folded logical value).
 - Setter call (Normal):
-  `isSetter set γ ∗ updPure f f̂ ⊢ {slot_ptsto γ a} set f {slot_ptsto γ (f̂ a)}`
+  `isSetter set γ ∗ updPure f f̂ ⊢ {next_state γ a} set f {next_state γ (f̂ a)}`
   - `updPure f f̂`: the **user obligation** that applying the closure f
     computes the meta-function f̂ deterministically and without side effects
     (the logical form of Def 3). Without it (a) the STTREBIND fold could
@@ -354,10 +354,10 @@ Realized as follows:
   and gets the Effect decision iff the value changed. The paper's Counter,
   whose second updater prints, is handled only by concrete symbolic
   execution of that queue (`counter_body_succ_click`).
-- `slot_ptsto γ a` is the client half of a ghost variable holding the logical
+- `next_state γ a` is the client half of a ghost variable holding the logical
   value; `slot_res D γ ent` is the runtime half tied to the physical slot
   (pure queue realized by `fs`, ghost = `fold fs committed`).
-  `wp_setter_normal_slot`: `slot_ptsto γ a` ↦ `slot_ptsto γ (f a)` while enqueuing
+  `wp_setter_normal_slot`: `next_state γ a` ↦ `next_state γ (f a)` while enqueuing
   `f`; `wp_usestate_succ_slot`: the body binds exactly `a`, the logical value is
   unchanged (rendering never changes the logical state).
 - `isSetter` is not yet a separate assertion: setter identity is currently
@@ -383,7 +383,7 @@ component_spec C (M : LTS A) (V : A → ViewSpec → iProp) :=
        □ {R a} h () @ Normal {∃ a', ⌜M.step a (label h) a'⌝ ∗ R a'} *)
 ```
 
-- R bundles the hooks' `slot_ptsto γ` and invariants, tying them to the abstract
+- R bundles the hooks' `next_state γ` and invariants, tying them to the abstract
   state a.
 - Handlers are chosen adversarially (in any quiescent state), hence
   persistent specs.
@@ -401,8 +401,8 @@ for every click trace, never stuck, display `2·|evs|`, exact output;
 transition") and `examples/selfcounter.v` (`selfcounter_adequate`: the
 effect-driven cycle converges at 3 with the exact console of §2.2). In
 slot form: `examples/pure_counter.v` (`click_spec`:
-`{slot_ptsto γ n} click {slot_ptsto γ (n+2)}`; `body_succ_spec`: display `[a; h]`
-from `slot_ptsto γ a`). Adequacy with the final physical state is
+`{next_state γ n} click {next_state γ (n+2)}`; `body_succ_spec`: display `[a; h]`
+from `next_state γ a`). Adequacy with the final physical state is
 `react_adequacy_state`.
 
 ### RQ3: Custom hooks as modules, and their modular specification
@@ -465,7 +465,7 @@ hookSpec useFoo :=
   store-reading pattern tears under concurrency, and a proof that
   useSyncExternalStore's consistency check restores the refinement.
 - API specs: `startTransition f` enqueues on the transition lane
-  (`{slot_ptsto γ a} … {pendingTransition γ …}`), a display spec for `isPending`,
+  (`{next_state γ a} … {pendingTransition γ …}`), a display spec for `isPending`,
   and the scheduler property that urgent updates are not blocked by
   transitions (no priority inversion). Since React itself has no formal
   spec here, theorems are stated **parametrically over a family of
