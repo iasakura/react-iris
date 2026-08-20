@@ -19,7 +19,8 @@
     statement as [counter_root_adequate], obtained without proving
     [counter_mount] / [counter_click_step]. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation programs interp machine.
+From react_iris.lang Require Import syntax domains notation interp machine.
+From react_iris.examples Require Import programs.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime
   adequacy component root.
 From react_iris.examples Require Import counter_modular.

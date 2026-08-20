@@ -26,7 +26,8 @@ Cond ()
     unverifiable, and one that respects them (all other examples,
     including a custom hook, [custom_hook.v]) is verifiable. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains programs interp machine.
+From react_iris.lang Require Import syntax domains interp machine.
+From react_iris.examples Require Import programs.
 From react_iris.logic Require Import inst stuck.
 From iris.program_logic Require Import adequacy.
 
