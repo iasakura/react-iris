@@ -18,8 +18,29 @@ See [docs/design.md](docs/design.md) for the design document and roadmap.
 
 ## Status
 
-Early stage: project infrastructure (M0) and the formalization of the
-React-tRace core calculus (M1) are in progress.
+Done so far:
+
+- **The React-tRace calculus, executable** (`theories/lang/`): syntax
+  and semantic objects, a fueled interpreter and a small-step machine,
+  cross-validated against the paper's examples (`tests.v`).
+- **A program logic over the machine** (`theories/logic/`): an Iris
+  language instance with a per-view points-to state interpretation and
+  adequacy; a WP rule per machine step; hook rules carrying the
+  updater-purity obligation (`hooks.v`); render-loop lemmas
+  (`runtime.v`); the value of a useState slot as ghost state
+  (`slots.v`); component specifications as refinements of an abstract
+  LTS (`component.v`).
+- **Verified examples** (`theories/examples/`): Counter — for every
+  click trace, the machine never gets stuck and displays twice the
+  number of clicks, with the exact output; SelfCounter (the
+  effect-driven render cycle), Parent/Child (a cross-component setter),
+  and a pure Counter specified against the ghost state.
+
+In progress: custom hooks and the "WP ⇒ Rules of Hooks" theorem under
+cursor semantics; generic render-loop lemmas.
+
+See [docs/design.md](docs/design.md) for the design decisions and the
+roadmap.
 
 ## Build
 
@@ -40,8 +61,8 @@ make clean
 ```
 theories/
   prelude.v      common imports and options
-  lang/          syntax, semantic domains, machine, executable interpreter
-  logic/         Iris language instance, program logic, hook/component specs
+  lang/          the React-tRace calculus and its executable semantics
+  logic/         the Iris program logic over it
   examples/      verified example components
 docs/design.md   design document
 vendor/react-trace  reference interpreter (oracle for differential tests)
