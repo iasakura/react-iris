@@ -28,7 +28,7 @@ Section runtime_rules.
   Implicit Types Φ : mval → iProp Σ.
 
   (** The pure lookup fact behind a points-to, for instantiating rules. *)
-  Lemma mem_lookup m p π :
+  Lemma mem_lookup (m : tree_mem) (p : path) (π : domains.view) :
     mem_auth_frag m -∗ view_ptsto p π -∗ ⌜m !! p = Some π⌝.
   Proof. iIntros "Hm Hp". by iApply (ghost_map_lookup with "Hm Hp"). Qed.
 
@@ -61,7 +61,8 @@ Section runtime_rules.
   (** ** Init (Fig. 7) *)
 
   (** INITCOM, dispatch: allocate a fresh path and enter the body. *)
-  Lemma wp_init_comp C v x body m ks Φ :
+  Lemma wp_init_comp (C : comp_name) (v : domains.val) (x : var)
+      (body : syntax.expr) (m : tree_mem) (ks : list machine.frame) Φ :
     δ !! C = Some (CompDef x body) →
     mem_auth_frag m -∗
     ▷ (mem_auth_frag m -∗
@@ -75,7 +76,8 @@ Section runtime_rules.
   Qed.
 
   (** INITCOM, body settled: mount the view, initialize the child spec. *)
-  Lemma wp_mount s p π m ks Φ :
+  Lemma wp_mount (s : domains.val) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = None →
     mem_auth_frag m -∗ reg_token (Some (p, π)) -∗
     ▷ (mem_auth_frag (<[p:=π]> m) -∗ view_ptsto p π -∗ reg_token None -∗
@@ -87,7 +89,8 @@ Section runtime_rules.
   Qed.
 
   (** INITCOM, child initialized: set the Effect decision and the child. *)
-  Lemma wp_init_finish t p π m ks Φ :
+  Lemma wp_init_finish (t : tree) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
     ▷ (mem_auth_frag
@@ -106,7 +109,9 @@ Section runtime_rules.
 
   (** RECONCILECOMEFFECT, dispatch: same component name — re-enter the
       body with the new argument. *)
-  Lemma wp_recon_comp_same p π C v x body m ks Φ :
+  Lemma wp_recon_comp_same (p : path) (π : domains.view) (C : comp_name)
+      (v : domains.val) (x : var) (body : syntax.expr) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     vw_comp π = C →
     δ !! C = Some (CompDef x body) →
@@ -123,7 +128,8 @@ Section runtime_rules.
   Qed.
 
   (** RECONCILECOMNEW, dispatch: different component name — reinit. *)
-  Lemma wp_recon_comp_new p π C v m ks Φ :
+  Lemma wp_recon_comp_new (p : path) (π : domains.view) (C : comp_name)
+      (v : domains.val) (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     vw_comp π ≠ C →
     mem_auth_frag m -∗
@@ -138,7 +144,8 @@ Section runtime_rules.
 
   (** RECONCILECOMEFFECT, body settled: write back, reconcile the old
       child against the new view spec. *)
-  Lemma wp_recon_writeback s' child p π0 π' m ks Φ :
+  Lemma wp_recon_writeback (s' : domains.val) (child : tree) (p : path)
+      (π0 π' : domains.view) (m : tree_mem) (ks : list machine.frame) Φ :
     mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
     ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
        WP ((FRecon child s', KReconChild p :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -149,7 +156,8 @@ Section runtime_rules.
   Qed.
 
   (** RECONCILECOMEFFECT, child reconciled: set Effect and the child. *)
-  Lemma wp_recon_finish t' p π m ks Φ :
+  Lemma wp_recon_finish (t' : tree) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
     ▷ (mem_auth_frag
@@ -167,7 +175,8 @@ Section runtime_rules.
   (** ** Check (Fig. 9) *)
 
   (** CHECKIDLE: no Check decision — recurse into the child. *)
-  Lemma wp_check_idle p π m ks Φ :
+  Lemma wp_check_idle (p : path) (π : domains.view) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     dec_check (vw_dec π) = false →
     mem_auth_frag m -∗
@@ -180,7 +189,8 @@ Section runtime_rules.
   Qed.
 
   (** CHECK*, dispatch: Check is on — re-evaluate the body. *)
-  Lemma wp_check_enter p π x body m ks Φ :
+  Lemma wp_check_enter (p : path) (π : domains.view) (x : var)
+      (body : syntax.expr) (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     dec_check (vw_dec π) = true →
     δ !! vw_comp π = Some (CompDef x body) →
@@ -196,7 +206,8 @@ Section runtime_rules.
 
   (** CHECKEFFECT: the re-evaluation decided to run Effects — write back
       and reconcile the old child against the new view spec. *)
-  Lemma wp_check_writeback_eff s' child p π0 π' m ks Φ :
+  Lemma wp_check_writeback_eff (s' : domains.val) (child : tree) (p : path)
+      (π0 π' : domains.view) (m : tree_mem) (ks : list machine.frame) Φ :
     dec_effect (vw_dec π') = true →
     mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
     ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
@@ -210,7 +221,9 @@ Section runtime_rules.
 
   (** CHECKNOEFFECT: settled with the same state — write back, keep the
       old child, and keep checking below. *)
-  Lemma wp_check_writeback_noeff s' child p π0 π' m ks Φ :
+  Lemma wp_check_writeback_noeff (s' : domains.val) (child : tree)
+      (p : path) (π0 π' : domains.view) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     dec_effect (vw_dec π') = false →
     mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
     ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
@@ -223,7 +236,8 @@ Section runtime_rules.
   Qed.
 
   (** CHECKEFFECT, child reconciled: install it and report a re-render. *)
-  Lemma wp_check_finish t' p π m ks Φ :
+  Lemma wp_check_finish (t' : tree) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
     ▷ (mem_auth_frag (<[p := π <| vw_child := t' |>]> m) -∗
@@ -238,7 +252,8 @@ Section runtime_rules.
   (** ** Commit (Fig. 8) *)
 
   (** COMMITEFFSPATHIDLE: no Effect decision — only the child. *)
-  Lemma wp_commit_idle p π m ks Φ :
+  Lemma wp_commit_idle (p : path) (π : domains.view) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     dec_effect (vw_dec π) = false →
     mem_auth_frag m -∗
@@ -252,7 +267,8 @@ Section runtime_rules.
 
   (** COMMITEFFSPATH, dispatch: commit the child first, then this
       view's queue. *)
-  Lemma wp_commit_enter p π m ks Φ :
+  Lemma wp_commit_enter (p : path) (π : domains.view) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     dec_effect (vw_dec π) = true →
     mem_auth_frag m -∗
@@ -268,7 +284,8 @@ Section runtime_rules.
   (** COMMITEFFSPATH, queue exhausted: clear the Effect decision.
       Two entry points, matching the two return foci ([FUnit] after the
       child commit with an empty queue; [FVal] after the last effect). *)
-  Lemma wp_commit_finish_u p π m ks Φ :
+  Lemma wp_commit_finish_u (p : path) (π : domains.view) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
     ▷ (mem_auth_frag (<[p := π <| vw_dec ::= dec_rm_effect |>]> m) -∗
@@ -280,7 +297,8 @@ Section runtime_rules.
     intros r ω. cbn. by rewrite Hp.
   Qed.
 
-  Lemma wp_commit_finish_v (v : domains.val) p π m ks Φ :
+  Lemma wp_commit_finish_v (v : domains.val) (p : path) (π : domains.view)
+      (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = Some π →
     mem_auth_frag m -∗ view_ptsto p π -∗
     ▷ (mem_auth_frag (<[p := π <| vw_dec ::= dec_rm_effect |>]> m) -∗
@@ -297,7 +315,8 @@ Section runtime_rules.
       [init ⟨C, v⟩] for [let C x = ()]: fresh path, body evaluation
       (one pure step), retry settles, mount, child init, finish — the
       client ends with the points-to of the mounted view. *)
-  Example wp_mount_demo C (v : domains.val) m ks Φ :
+  Example wp_mount_demo (C : comp_name) (v : domains.val) (m : tree_mem)
+      (ks : list machine.frame) Φ :
     δ !! C = Some (CompDef "x" (EConst CUnit)) →
     mem_auth_frag m -∗ reg_token None -∗
     (∀ p, mem_auth_frag

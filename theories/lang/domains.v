@@ -12,7 +12,7 @@ From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax.
 From RecordUpdate Require Import RecordSet.
 
-Definition path := nat.
+Definition path : Set := nat.
 
 (** ** Values
 
@@ -84,7 +84,7 @@ Record st_entry := StEntry {
   st_queue : list val;
 }.
 
-Definition stt_store := gmap label st_entry.
+Definition stt_store : Type := gmap label st_entry.
 
 (** ** Views and tree memory
 
@@ -106,7 +106,7 @@ Record view := MkView {
   vw_child : tree;
 }.
 
-Definition tree_mem := gmap path view.
+Definition tree_mem : Type := gmap path view.
 
 (** ** Phases and modes *)
 Inductive phase := PInit | PSucc | PNormal.
@@ -128,7 +128,7 @@ Inductive rctx :=
   | RCtxView (p : path) (π : view).
 
 (** ** Output buffer (observations of [print]) *)
-Definition out_buf := list val.
+Definition out_buf : Set := list val.
 
 (** ** Machine configurations (paper: ⟨t, m, ω, δ, μ⟩; the definition
     table δ is a parameter, not part of the configuration) *)

@@ -9,7 +9,8 @@
     The proof is "by computation" ([wp_mrun_ok]); the modular proof via
     hook and component specifications is the goal of M3. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine tests.
+From react_iris.lang Require Import syntax domains interp machine.
+From react_iris.examples Require Import programs.
 From react_iris.logic Require Import inst lifting adequacy.
 From iris.program_logic Require Import weakestpre adequacy.
 From iris.proofmode Require Import proofmode.

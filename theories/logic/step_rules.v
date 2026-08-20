@@ -142,7 +142,9 @@ Section step_rules.
 
   (** Enter a component body: clear Check and the effect queue, push the
       retry frame (Fig. 6, round entry). *)
-  Lemma wp_body_enter φ p π σb body ks r Φ :
+  Lemma wp_body_enter (φ : phase) (p : path) (π : domains.view) (σb : env)
+      (body : syntax.expr) (ks : list machine.frame)
+      (r : option (path * domains.view)) Φ :
     reg_token r -∗
     ▷ (reg_token (Some (p, π <| vw_dec ::= dec_rm_check |>
                               <| vw_effq := [] |>)) -∗
@@ -152,7 +154,8 @@ Section step_rules.
   Proof. iApply wp_reg_step; [done|by intros]. Qed.
 
   (** STTBIND, dispatch: evaluate the initial-value expression. *)
-  Lemma wp_usestate_init l x xset e1 e2 σb p π ks Φ :
+  Lemma wp_usestate_init (l : label) (x xset : var) (e1 e2 : syntax.expr)
+      (σb : env) (p : path) (π : domains.view) (ks : list machine.frame) Φ :
     reg_token (Some (p, π)) -∗
     ▷ (reg_token (Some (p, π)) -∗
        WP ((FExpr PInit σb e1, KUseState σb l x xset e2 :: ks)
@@ -163,7 +166,9 @@ Section step_rules.
 
   (** STTBIND, continuation: allocate the slot, bind the state variable
       and the setter. *)
-  Lemma wp_usestate_bind v σb l x xset e2 p π ks Φ :
+  Lemma wp_usestate_bind (v : domains.val) (σb : env) (l : label)
+      (x xset : var) (e2 : syntax.expr) (p : path) (π : domains.view)
+      (ks : list machine.frame) Φ :
     reg_token (Some (p, π)) -∗
     ▷ (reg_token (Some (p, π <| vw_sttst ::= insert l (StEntry v []) |>)) -∗
        WP ((FExpr PInit (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
@@ -173,7 +178,9 @@ Section step_rules.
 
   (** STTREBIND, empty queue: rebind the committed value; the decision
       is unchanged. *)
-  Lemma wp_usestate_succ_nil l x xset e1 e2 σb p π v0 ks Φ :
+  Lemma wp_usestate_succ_nil (l : label) (x xset : var) (e1 e2 : syntax.expr)
+      (σb : env) (p : path) (π : domains.view) (v0 : domains.val)
+      (ks : list machine.frame) Φ :
     vw_sttst π !! l = Some (StEntry v0 []) →
     reg_token (Some (p, π)) -∗
     ▷ (reg_token (Some (p, π <| vw_sttst ::= insert l (StEntry v0 []) |>)) -∗
@@ -188,7 +195,10 @@ Section step_rules.
 
   (** STTREBIND, non-empty queue: apply the first queued updater to the
       committed value. *)
-  Lemma wp_usestate_succ_cons l x xset e1 e2 σb p π v0 xi ei σi q ks Φ :
+  Lemma wp_usestate_succ_cons (l : label) (x xset : var)
+      (e1 e2 : syntax.expr) (σb : env) (p : path) (π : domains.view)
+      (v0 : domains.val) (xi : var) (ei : syntax.expr) (σi : env)
+      (q : list domains.val) (ks : list machine.frame) Φ :
     vw_sttst π !! l = Some (StEntry v0 (VClos xi ei σi :: q)) →
     reg_token (Some (p, π)) -∗
     ▷ (reg_token (Some (p, π)) -∗
@@ -203,7 +213,9 @@ Section step_rules.
 
   (** STTREBIND, fold exhausted: commit the folded value, add the Effect
       decision iff it changed, flush the queue, bind. *)
-  Lemma wp_sttfold_nil v σb l x xset e2 v0 p π ks Φ :
+  Lemma wp_sttfold_nil (v : domains.val) (σb : env) (l : label)
+      (x xset : var) (e2 : syntax.expr) (v0 : domains.val) (p : path)
+      (π : domains.view) (ks : list machine.frame) Φ :
     reg_token (Some (p, π)) -∗
     ▷ (reg_token
          (Some (p, π <| vw_dec := (if val_eqb v v0 then vw_dec π
@@ -216,7 +228,10 @@ Section step_rules.
   Proof. iApply wp_reg_step; [done|by intros]. Qed.
 
   (** STTREBIND, next updater. *)
-  Lemma wp_sttfold_cons v σb l x xset e2 v0 xi ei σi q p π ks Φ :
+  Lemma wp_sttfold_cons (v : domains.val) (σb : env) (l : label)
+      (x xset : var) (e2 : syntax.expr) (v0 : domains.val) (xi : var)
+      (ei : syntax.expr) (σi : env) (q : list domains.val) (p : path)
+      (π : domains.view) (ks : list machine.frame) Φ :
     reg_token (Some (p, π)) -∗
     ▷ (reg_token (Some (p, π)) -∗
        WP ((FExpr PSucc (env_insert xi v σi) ei,
@@ -226,7 +241,8 @@ Section step_rules.
   Proof. iApply wp_reg_step; [done|by intros]. Qed.
 
   (** EFF: register an effect thunk. *)
-  Lemma wp_useeffect φ e' σb p π ks Φ :
+  Lemma wp_useeffect (φ : phase) (e' : syntax.expr) (σb : env) (p : path)
+      (π : domains.view) (ks : list machine.frame) Φ :
     φ ≠ PNormal →
     reg_token (Some (p, π)) -∗
     ▷ (reg_token
@@ -240,7 +256,9 @@ Section step_rules.
 
   (** APPSETCOMP: calling the component's own setter during rendering
       queues the updater and turns on the Check decision. *)
-  Lemma wp_setter_comp φ l p π ent xi ei σi ks Φ :
+  Lemma wp_setter_comp (φ : phase) (l : label) (p : path)
+      (π : domains.view) (ent : st_entry) (xi : var) (ei : syntax.expr)
+      (σi : env) (ks : list machine.frame) Φ :
     φ ≠ PNormal →
     vw_sttst π !! l = Some ent →
     reg_token (Some (p, π)) -∗
@@ -260,7 +278,8 @@ Section step_rules.
   Qed.
 
   (** EVALONCE: the round left no Check decision — the body settled. *)
-  Lemma wp_retry_done s σb body p π' ks Φ :
+  Lemma wp_retry_done (s : domains.val) (σb : env) (body : syntax.expr)
+      (p : path) (π' : domains.view) (ks : list machine.frame) Φ :
     dec_check (vw_dec π') = false →
     reg_token (Some (p, π')) -∗
     ▷ (reg_token (Some (p, π')) -∗
@@ -272,7 +291,8 @@ Section step_rules.
   Qed.
 
   (** EVALMULT: the round turned Check back on — re-enter the body. *)
-  Lemma wp_retry_again s σb body p π' ks Φ :
+  Lemma wp_retry_again (s : domains.val) (σb : env) (body : syntax.expr)
+      (p : path) (π' : domains.view) (ks : list machine.frame) Φ :
     dec_check (vw_dec π') = true →
     reg_token (Some (p, π')) -∗
     ▷ (reg_token (Some (p, π' <| vw_dec ::= dec_rm_check |>
@@ -291,7 +311,8 @@ Section step_rules.
       is read from the environment, the slot is allocated, and the view
       spec [[v]] is produced — rule by rule, no computation of whole
       runs. *)
-  Example wp_usestate_demo p π (v : domains.val) ks Φ :
+  Example wp_usestate_demo (p : path) (π : domains.view) (v : domains.val)
+      (ks : list machine.frame) Φ :
     reg_token (Some (p, π)) -∗
     (reg_token (Some (p, π <| vw_sttst ::= insert 0%nat (StEntry v []) |>)) -∗
        WP ((FVal (VList [v]), ks) : expr (reactLang δ)) {{ Φ }}) -∗

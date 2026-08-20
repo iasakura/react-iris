@@ -4,6 +4,7 @@
 theories/prelude.v
 theories/lang/syntax.v
 theories/lang/domains.v
+theories/lang/notation.v
 theories/lang/interp.v
 theories/lang/machine.v
 theories/lang/tests.v
@@ -11,5 +12,14 @@ theories/logic/inst.v
 theories/logic/lifting.v
 theories/logic/step_rules.v
 theories/logic/runtime_rules.v
+theories/logic/hooks.v
+theories/logic/runtime.v
+theories/logic/slots.v
 theories/logic/adequacy.v
+theories/logic/component.v
+theories/examples/programs.v
 theories/examples/counter.v
+theories/examples/counter_modular.v
+theories/examples/selfcounter.v
+theories/examples/pure_counter.v
+theories/examples/parent_child.v

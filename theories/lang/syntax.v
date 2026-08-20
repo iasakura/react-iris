@@ -15,9 +15,9 @@
     phantom types). *)
 From react_iris Require Import prelude.
 
-Definition var := string.
-Definition comp_name := string.
-Definition label := nat.
+Definition var : Set := string.
+Definition comp_name : Set := string.
+Definition label : Set := nat.
 
 (** ** Constants *)
 Inductive const :=
@@ -63,7 +63,7 @@ Record comp_def := CompDef {
   cd_body : expr;
 }.
 
-Definition def_table := gmap comp_name comp_def.
+Definition def_table : Type := gmap comp_name comp_def.
 
 Record prog := Prog {
   p_defs : list (comp_name * comp_def);
