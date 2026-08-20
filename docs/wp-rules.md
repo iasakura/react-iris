@@ -13,7 +13,7 @@ Every rule in the development is one of four kinds:
 |---|---|---|
 | **K1 footprint** | parametric in the redex: "a deterministic step that touches only the register / only view `p` / only the output" | owns exactly the state-interp update; proved once against `state_interp` |
 | **K2 redex** | one rule per machine redex, literally transcribing `mstep` | zero — each is a one-line instance of a K1 rule |
-| **K3 derived spec** | a hook or phase with a *specification* (fold of a pure queue, CPS through a whole body/mount/check/commit) | real proofs; where obligations (`upd_pure`) and abstraction (`next_state`) appear |
+| **K3 derived spec** | a hook or phase with a *specification* (fold of a pure queue, CPS through a whole body/mount/check/commit) | real proofs; where obligations (`upd_pure`) and abstraction (`latest_state`) appear |
 | **K4 top theorem** | abstract LTS refinement, generic render loops, adequacy export | the D7 theorem shape |
 
 ## 2. Inventory (per current file)
@@ -46,8 +46,8 @@ commit `wp_commit_idle` / `wp_commit_enter` / `wp_commit_finish_u` /
 `wp_usestate_succ_pure`, `wp_sttfold_pure`, `wp_setter_normal`.
 
 ### `slots.v` — K3, ghost layer for slot values
-`next_state` / `slot_res`; `slot_alloc`, `slot_enqueue`,
-`next_state_committed`; `wp_usestate_mount_slot`, `wp_usestate_succ_slot`,
+`latest_state` / `slot_res`; `slot_alloc`, `slot_enqueue`,
+`latest_state_committed`; `wp_usestate_mount_slot`, `wp_usestate_succ_slot`,
 `wp_setter_normal_slot`.
 
 ### `runtime.v` — K3, CPS lemmas per lifecycle phase
@@ -70,7 +70,7 @@ Counting uses outside the defining lemma, on `cursor-hooks` (superset):
 | `wp_recon_comp_same/new`, `wp_recon_writeback`, `wp_recon_finish` | 0 | the RECONCILECOM* path — needed for *non-leaf* roots (a component child that re-renders); no example reaches it yet |
 | `wp_setter_comp` | 0 | setter called *during* rendering; no example does this yet (it is how "render reads a fresh setter" works) |
 | `wp_commit_idle` | 0 | commit passing an Effect-off path; unreached because examples commit only the root, with Effect on |
-| `next_state_committed` | 0 | agreement helper, never needed so far |
+| `latest_state_committed` | 0 | agreement helper, never needed so far |
 | `wp_usestate_mount_slot` | 0 | slot-form mount; `pure_counter.v` only exercises click + re-render |
 | everything else | ≥ 1 | in use |
 
@@ -78,7 +78,7 @@ Recommendation: **keep all K2 rules** (each is the unique logical
 transcription of one machine redex; deleting them loses Fig. 7 coverage and
 they cost one line each) but group the unexercised ones under an explicit
 "not yet exercised — needed for non-leaf roots" header. Drop or keep
-`next_state_committed` / `wp_usestate_mount_slot` freely; they are two
+`latest_state_committed` / `wp_usestate_mount_slot` freely; they are two
 lines and complete the slot API, so keeping is suggested.
 
 There are no duplicated rules: `wp_usestate_succ_pure` (K3) *derives from*

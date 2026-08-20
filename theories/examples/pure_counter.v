@@ -12,11 +12,11 @@ let Counter x =
     Unlike the paper's Counter, the updaters are pure, so the slot layer
     (slots.v) applies:
 
-    - [click_spec]: the handler takes [next_state γ (cint n)] to
-      [next_state γ (cint (n+2))] — the specification of the callback as a
+    - [click_spec]: the handler takes [latest_state γ (cint n)] to
+      [latest_state γ (cint (n+2))] — the specification of the callback as a
       transition of the abstract state, with the physical queueing of
       the two updaters as a side product;
-    - [body_succ_spec]: on re-render, from [next_state γ a] the body renders
+    - [body_succ_spec]: on re-render, from [latest_state γ a] the body renders
       the view spec [[a; handler]] and leaves the logical value unchanged — the
       display is a function of the abstract state, and rendering does
       not change it.
@@ -68,9 +68,9 @@ Section pure_counter.
       (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
-    next_state γ (cint n) -∗ slot_res δ is_int γ ent -∗
+    latest_state γ (cint n) -∗ slot_res δ is_int γ ent -∗
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
-    (∀ π' ent', next_state γ (cint (n + 1 + 1)) -∗ slot_res δ is_int γ ent' -∗
+    (∀ π' ent', latest_state γ (cint (n + 1 + 1)) -∗ slot_res δ is_int γ ent' -∗
        mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
@@ -98,9 +98,9 @@ Section pure_counter.
       (π : domains.view) (ent : st_entry) (ks : list machine.frame)
       (Φ : mval → iProp Σ) :
     vw_sttst π !! 0 = Some ent →
-    next_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗
+    latest_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗
     (∀ n, ⌜a = cint n⌝ -∗
-       next_state γ a -∗ slot_res δ is_int γ (StEntry a []) -∗
+       latest_state γ a -∗ slot_res δ is_int γ (StEntry a []) -∗
        render_ctx p (commit_slot π 0 (st_val ent) a) -∗
        WP ((FVal (VList [a; handler p n nx]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc [("x", cint nx)] pure_counter_body, ks) : expr (reactLang δ)) {{ Φ }}.
