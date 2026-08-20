@@ -30,7 +30,8 @@ SelfCounter 0
     (setter call in Normal phase), and [wp_usestate_succ_pure] with a
     genuinely pure queue. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains notation programs interp machine.
+From react_iris.lang Require Import syntax domains notation interp machine.
+From react_iris.examples Require Import programs.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.

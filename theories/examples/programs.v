@@ -1,10 +1,10 @@
-(** * The programs.
+(** * The programs verified in the examples.
 
-    Every object-language program used in the tests ([lang/tests.v]) and
-    verified in the examples ([examples/]), in the surface notation of
-    [lang/notation.v], each with its source as in the paper. Reading this
-    file first shows what the development is about; the tests and
-    examples then only refer to these definitions.
+    Every object-language program verified in [examples/], in the
+    surface notation of [lang/notation.v], each with its source as in
+    the paper. Reading this file first shows what the examples are
+    about. (The conformance tests, [lang/tests.v], carry their own
+    transcriptions and do not depend on this file.)
 
     Conventions of the notation: a string literal is a variable; [Str s]
     is a string constant; numerals are integers; [#()] is unit; [Comp C]
