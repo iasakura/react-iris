@@ -61,9 +61,8 @@ make clean
 ```
 theories/
   prelude.v      common imports and options
-  lang/          syntax, semantic domains, executable interpreter, machine, tests
-  logic/         Iris language instance, lifting, redex rules, hook layer,
-                 runtime lemmas, slot layer, component specs, adequacy
+  lang/          the React-tRace calculus and its executable semantics
+  logic/         the Iris program logic over it
   examples/      verified example components
 docs/design.md   design document
 vendor/react-trace  reference interpreter (oracle for differential tests)
