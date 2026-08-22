@@ -184,6 +184,22 @@ conformance check.
   restriction) is justified by an agreement lemma between the cursor and
   static versions, plus differential tests against react-trace.
 
+**Status.** Phase 3 is implemented: the view carries a hook cursor
+(`vw_hook_cursor`), reset on body entry; `useState` binds the slot at the
+cursor and advances it; on re-render a missing slot is stuck ("more hooks
+than in the previous render"), and settling with cursor ≠ slot count is
+stuck ("fewer hooks"). Hooks therefore carry **no syntactic label** at
+all — `EUseState x xset e1 e2` — since the label is the cursor at the
+call; the paper's static labels 0, 1, … in call order coincide with the
+cursors, so all paper examples and the machine/interpreter agreement are
+unchanged. New tests cover two hooks by call order and a custom hook (a
+function containing a hook). `logic/stuck.v` certifies
+non-safety by computation (`stuck_within_not_adequate`), and
+`examples/rules_of_hooks.v` proves `cond_not_adequate`: the paper's
+`Cond` admits no adequate postcondition, hence no WP proof — the concrete
+content of "WP ⇒ Rules of Hooks". Hiding a custom hook's slot count
+behind an abstract hook context (§5.3) is not yet done.
+
 ### D3: Divergence (infinite retry / infinite re-render)
 
 - The semantics stays **unbounded** as in the paper (divergence allowed).
@@ -405,6 +421,21 @@ slot form: `examples/pure_counter.v` (`click_spec`:
 from `latest_state γ a`). Adequacy with the final physical state is
 `react_adequacy_state`.
 
+**Status (M3, second instalment — the generic render loop).** The root
+LTS refinement is generic: `logic/component.v` (`root_spec`,
+`root_obligations`, `root_adequacy`) and, for *leaf* roots (one
+component, path-free children, no effects), `logic/root.v` runs the
+machine's whole render loop once and for all: `leaf_root_obligations`
+derives the `root_obligations` from three hook-level specifications
+(body in Init, handlers, body in Succ), with display and handler lookup
+computed generically for path-free children. `examples/counter_leaf.v`
+re-derives the Counter refinement (`counter_leaf_adequate` =
+`counter_root_adequate`) with *no hand-proved run lemmas* — only the
+body/handler specs of `counter_modular.v`. Not yet done: non-leaf roots
+(component children, effect queues at the root), and deriving the
+handler obligation from a `handlers_ok`-style iteration over the view —
+see the committed next steps in §6.
+
 ### RQ3: Custom hooks as modules, and their modular specification
 
 The specification of a custom hook `useFoo` is a triple:
@@ -493,7 +524,7 @@ hookSpec useFoo :=
 | M0 | Infra: `_CoqProject` + Makefile, CI, rocq-mcp flow, vendored react-trace | Iris imports build (sanity done), CI green |
 | M1 | L0/L1: syntax, semantic objects, small-step machine, executable interpreter | Ported react-trace tests agree under `vm_compute`. Array-free fragment first → arrays & recursive views |
 | M2 | L2: language instance, state interp, WP, adequacy, basic points-tos | Safety (not stuck) + display spec proved for Counter |
-| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, slot layer, runtime lemmas, Counter trace theorem, SelfCounter cycle |
+| M3 | L3/L4: hook specs, runtime lemmas, component_spec, logical Thm 1/2, **cursor semantics + custom hooks**, deps + cleanup | 3 custom hooks verified modularly; "WP ⇒ Rules of Hooks" theorem. *Done so far:* hook rules + purity obligation, slot layer, runtime lemmas, Counter trace theorem, SelfCounter cycle, cursor semantics + "WP ⇒ Rules of Hooks" + custom hook specified once, generic root render loop for leaf components |
 | M4 | Refs + mini-jotai + synchronous useSyncExternalStore theorem | Eventual-consistency proof for the jotai pattern |
 | M5 | Concurrent machine + refinement theorem + useTransition / Suspense specs | Purity ⇒ refinement; tearing counterexample and recovery via uSES |
 | M6 | FiberLang implementation refinement (stretch) | Forward simulation for synchronous mode |
@@ -501,6 +532,39 @@ hookSpec useFoo :=
 M1 is the heaviest. Its machine frame structure couples with the M2 language
 instance, so we validate it early with an M2 prototype (a full WP round trip
 on Counter).
+
+### Committed next steps (M3, remaining)
+
+Explicit items, in the order we intend to take them:
+
+1. **Generalize the leaf render loop to component trees.** `logic/root.v`
+   proves the render loop once for *leaf* roots (one component, path-free
+   children, no effects); that restriction is a proof-organization
+   stepping stone, not a React concept. Next: roots whose children are
+   themselves components — the RECONCILECOM* redex rules (currently
+   unexercised) and effect queues at the root — with each child's
+   obligations composed into the parent's; then replace the concrete
+   `leaf_data` views (`ld_st` / `ld_spec` / `ld_hpost`) by the abstract
+   obligations of §5.2 (`component_spec`: `latest_state` / `slot_res`,
+   `R a`, `V a s`, `handlers_ok`), and rename the layer accordingly
+   (`root_loop` / single-component rather than "leaf"). Acceptance: the
+   Parent/Child example derived through the generic loop, with no
+   hand-proved run lemmas.
+2. **Fuel-free display in theorem statements.** `display_t 1000 …` leaks a
+   magic number into `rs_disp`, `root_adequacy`, and the example
+   theorems. Redefine display like `handlers_of`: structural recursion on
+   the tree, fuel only for path hops, bounded by `S (map_size m)`
+   (sufficient on acyclic memories). Then the statements read
+   `display m (TPath 0) = Ok d`, and the `val_size ≤ 999` side condition
+   of `leaf_obligations` disappears (the path-free lemma becomes the
+   same tree induction as `handlers_h_free`). `FUEL` / `MFUEL` stay in
+   the tests and in `wp_mrun_ok` only, where they are computational.
+3. **WP-rule file reorganization** per `docs/wp-rules.md` (footprint
+   rules into `lifting.v`; `step_rules.v` ∪ `runtime_rules.v` →
+   `redex_rules.v`; `runtime.v` → `lifecycle.v`). Pure refactoring,
+   reviewed separately.
+4. Hook-context abstraction hiding a custom hook's slot count (§5.3);
+   logical Theorems 1/2; machine ↔ interpreter agreement as a theorem.
 
 ## 7. Repository Layout and Development Conventions
 

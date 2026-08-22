@@ -17,9 +17,12 @@ theories/logic/runtime.v
 theories/logic/slots.v
 theories/logic/adequacy.v
 theories/logic/component.v
-theories/examples/programs.v
+theories/logic/root.v
+theories/logic/stuck.v
 theories/examples/counter.v
 theories/examples/counter_modular.v
 theories/examples/selfcounter.v
 theories/examples/pure_counter.v
 theories/examples/parent_child.v
+theories/examples/rules_of_hooks.v
+theories/examples/custom_hook.v

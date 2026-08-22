@@ -17,8 +17,7 @@
     - Application is juxtaposition, through a coercion of [expr] to
       [Funclass]: [f x y] is [EApp (EApp f x) y].
     - [e1 ;; e2], [λ: x, e], [let: x := e1 in e2], [if: e0 then e1 else e2],
-      [let: x, xs := useState e1 in e2] (label 0; labels are ignored under
-      cursor semantics — write [EUseState l …] to set one), [useEffect: e],
+      [let: x, xs := useState e1 in e2], [useEffect: e],
       [print: e], and the view [⟪ e1; …; en ⟫].
     - Operators [+ - * < ≤ = ¬] at Coq's usual levels.
 
@@ -40,7 +39,7 @@ Arguments EVar x%string_scope.
 Arguments ECompName C%string_scope.
 Arguments EFun x%string_scope e%r.
 Arguments ELet x%string_scope e1%r e2%r.
-Arguments EUseState l%nat_scope x%string_scope xset%string_scope e1%r e2%r.
+Arguments EUseState x%string_scope xset%string_scope e1%r e2%r.
 
 (** ** Constants and variables *)
 Definition expr_of_Z (n : Z) : expr := EConst (CInt n).
@@ -86,7 +85,7 @@ Notation "'let:' x := e1 'in' e2" := (ELet x%string e1%r e2%r)
   (at level 200, x at level 1, e1, e2 at level 200,
    format "'[' 'let:'  x  :=  '[' e1 ']'  'in'  '/' e2 ']'") : react_scope.
 Notation "'let:' x , xs := 'useState' e1 'in' e2" :=
-  (EUseState 0 x%string xs%string e1%r e2%r)
+  (EUseState x%string xs%string e1%r e2%r)
   (at level 200, x, xs at level 1, e1, e2 at level 200,
    format "'[' 'let:'  x ,  xs  :=  'useState'  '[' e1 ']'  'in'  '/' e2 ']'") : react_scope.
 Notation "'if:' e0 'then' e1 'else' e2" := (EIf e0%r e1%r e2%r)

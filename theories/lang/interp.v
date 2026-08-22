@@ -199,14 +199,19 @@ Section interp.
             '(_, Σ1, ω1) ← eval n φ Σ σ e1;
             '(v2, Σ2, ω2) ← eval n φ Σ1 σ e2;
             mret (v2, Σ2, ω1 ++ ω2)
-        | EUseState l x xset e1 e2 =>
+        | EUseState x xset e1 e2 =>
+            (* Cursor semantics (D2): the slot is the hook's position among
+               the render's hook calls ([vw_hook_cursor]); the syntactic label is
+               ignored. *)
             match φ, Σ with
             | PInit, RCtxView p π =>
                 (* STTBIND *)
                 '(v1, Σ1, ω1) ← eval n PInit (RCtxView p π) σ e1;
                 match Σ1 with
                 | RCtxView p π1 =>
-                    let π2 := π1 <| vw_sttst ::= insert l (StEntry v1 []) |> in
+                    let l := vw_hook_cursor π1 in
+                    let π2 := π1 <| vw_sttst ::= insert l (StEntry v1 []) |>
+                                 <| vw_hook_cursor := S l |> in
                     let σ' := env_insert xset (VSetter l p)
                                 (env_insert x v1 σ) in
                     '(v2, Σ2, ω2) ← eval n PInit (RCtxView p π2) σ' e2;
@@ -216,8 +221,9 @@ Section interp.
             | PSucc, RCtxView p π =>
                 (* STTREBIND: fold the queued updaters over the committed
                    value; add the Effect decision iff the value changed. *)
+                let l := vw_hook_cursor π in
                 match vw_sttst π !! l with
-                | None => Stuck "useState: unknown label"
+                | None => Stuck "Rules of Hooks: more hooks than in the previous render"
                 | Some (StEntry v0 q) =>
                     '(vn, Σ1, ω1) ←
                       (fix fold_q (q : list val) (v : val) (Σ : rctx)
@@ -236,7 +242,8 @@ Section interp.
                         let dec' := if val_eqb vn v0 then vw_dec πn
                                     else dec_add_effect (vw_dec πn) in
                         let πn' := πn <| vw_dec := dec' |>
-                                      <| vw_sttst ::= insert l (StEntry vn []) |> in
+                                      <| vw_sttst ::= insert l (StEntry vn []) |>
+                                      <| vw_hook_cursor := S l |> in
                         let σ' := env_insert xset (VSetter l p)
                                     (env_insert x vn σ) in
                         '(v2, Σ2, ω2) ← eval n PSucc (RCtxView p πn') σ' e2;
@@ -282,14 +289,17 @@ Section interp.
     match fuel with
     | O => OOF
     | S n =>
-        let π0 := π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> in
+        let π0 := π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |>
+                    <| vw_hook_cursor := 0 |> in
         '(s, Σ', ω) ← eval n φ (RCtxView p π0) σ e;
         match Σ' with
         | RCtxView _ π' =>
             if dec_check (vw_dec π') then
               '(s', π'', ω') ← eval_retry n PSucc p π' σ e;
               mret (s', π'', ω ++ ω')
-            else mret (s, π', ω)
+            else if decide (vw_hook_cursor π' = map_size (vw_sttst π'))
+              then mret (s, π', ω)
+              else Stuck "Rules of Hooks: fewer hooks than in the previous render"
         | _ => Stuck "retry: context changed"
         end
     end.
@@ -325,7 +335,7 @@ Section interp.
                end) ss m ≫= λ '(ts, m', ω), mret (TList ts, m', ω)
         | VCompSpec C v =>                                       (* INITCOM *)
             let p := fresh_path m in
-            let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) in
+            let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) 0 in
             '(s', π, ω) ← eval_body n PInit p π0 v;
             '(t, m', ω') ← init_vs n s' (<[p := π]> m);
             let πf := π <| vw_dec := Decisions false true |> <| vw_child := t |> in

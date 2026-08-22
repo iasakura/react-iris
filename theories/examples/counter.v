@@ -9,11 +9,37 @@
     The proof is "by computation" ([wp_mrun_ok]); the modular proof via
     hook and component specifications is the goal of M3. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine.
-From react_iris.examples Require Import programs.
+From react_iris.lang Require Import syntax domains notation interp machine.
 From react_iris.logic Require Import inst lifting adequacy.
 From iris.program_logic Require Import weakestpre adequacy.
 From iris.proofmode Require Import proofmode.
+
+(** ** Counter (§2.1 of the paper) — queued functional updates
+
+<<
+let Counter x =
+  print "Counter";
+  let (s, setS) = useState x in
+  print "Return";
+  [s, button (fun _ ->
+    setS (fun s -> s + 1);
+    setS (fun s -> print "Update"; s + 1))];;
+Counter 0
+>>
+
+    The second updater prints, so its state update is not pure — the
+    paper's example of the update-timing puzzle ("Update" is printed
+    during the next render). *)
+Definition counter_body : syntax.expr :=
+  (print: Str "Counter" ;;
+   let: "s", "setS" := useState "x" in
+   print: Str "Return" ;;
+   ⟪ "s";
+     λ: "_", "setS" (λ: "s", "s" + 1) ;;
+             "setS" (λ: "s", print: Str "Update" ;; "s" + 1) ⟫)%r.
+
+Definition counter_prog : prog :=
+  Prog [("Counter", CompDef "x" counter_body)] (Comp "Counter" 0)%r.
 
 Section counter.
   Context `{!invGS Σ, !reactGS Σ}.

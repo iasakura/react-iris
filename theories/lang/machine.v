@@ -73,8 +73,9 @@ Inductive frame :=
   | KBopL (φ : phase) (σ : env) (op : bin_op) (e2 : expr)
   | KBopR (op : bin_op) (v1 : val)
   | KPrint
-  (* useState, Init phase: after the initial value (STTBIND) *)
-  | KUseState (σ : env) (l : label) (x xset : var) (e2 : expr)
+  (* useState, Init phase: after the initial value (STTBIND); the slot is
+     the cursor at that point *)
+  | KUseState (σ : env) (x xset : var) (e2 : expr)
   (* useState, Succ phase: folding the update queue (STTREBIND);
      [v0] is the committed value, [q] the remaining updaters *)
   | KSttFold (σ : env) (l : label) (x xset : var) (e2 : expr)
@@ -176,7 +177,8 @@ Section machine.
       (body : expr) (ks : list frame) (c : mcfg) : mcfg :=
     c <| mc_focus := FExpr φ σ body |>
       <| mc_stack := KRetry σ body :: ks |>
-      <| mc_reg := Some (p, π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |>) |>.
+      <| mc_reg := Some (p, π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |>
+                              <| vw_hook_cursor := 0 |>) |>.
 
   (** One machine step. [Stuck] means no rule applies; [OOF] is unused. *)
   Definition mstep (c : mcfg) : res mcfg :=
@@ -208,21 +210,26 @@ Section machine.
         | ESeq e1 e2 =>
             mret (c <| mc_focus := FExpr φ σ e1 |>
                     <| mc_stack ::= cons (KSeq φ σ e2) |>)
-        | EUseState l x xset e1 e2 =>
+        | EUseState x xset e1 e2 =>
+            (* Cursor semantics (D2): the slot is the hook's position among
+               the render's hook calls ([vw_hook_cursor] of the register); the
+               syntactic label is ignored. *)
             match φ, mc_reg c with
             | PInit, Some (_, _) =>
                 (* STTBIND: evaluate the initial value first *)
                 mret (c <| mc_focus := FExpr PInit σ e1 |>
-                        <| mc_stack ::= cons (KUseState σ l x xset e2) |>)
+                        <| mc_stack ::= cons (KUseState σ x xset e2) |>)
             | PSucc, Some (p, π) =>
                 (* STTREBIND: fold the queued updaters *)
+                let l := vw_hook_cursor π in
                 match vw_sttst π !! l with
-                | None => Stuck "useState: unknown label"
+                | None => Stuck "Rules of Hooks: more hooks than in the previous render"
                 | Some (StEntry v0 q) =>
                     match q with
                     | [] =>
                         (* empty queue: value unchanged, no Effect *)
-                        let π' := π <| vw_sttst ::= insert l (StEntry v0 []) |> in
+                        let π' := π <| vw_sttst ::= insert l (StEntry v0 []) |>
+                                    <| vw_hook_cursor := S l |> in
                         let σ' := env_insert xset (VSetter l p)
                                     (env_insert x v0 σ) in
                         mret (c <| mc_focus := FExpr PSucc σ' e2 |>
@@ -336,11 +343,14 @@ Section machine.
             | KPrint =>
                 mret (pop <| mc_focus := FVal (VConst CUnit) |>
                           <| mc_out ::= (λ ω, ω ++ [v]) |>)
-            | KUseState σ l x xset e2 =>
-                (* STTBIND, after the initial value *)
+            | KUseState σ x xset e2 =>
+                (* STTBIND, after the initial value: allocate the slot at
+                   the cursor *)
                 match mc_reg pop with
                 | Some (p, π) =>
-                    let π' := π <| vw_sttst ::= insert l (StEntry v []) |> in
+                    let l := vw_hook_cursor π in
+                    let π' := π <| vw_sttst ::= insert l (StEntry v []) |>
+                                <| vw_hook_cursor := S l |> in
                     let σ' := env_insert xset (VSetter l p)
                                 (env_insert x v σ) in
                     mret (pop <| mc_focus := FExpr PInit σ' e2 |>
@@ -356,7 +366,8 @@ Section machine.
                         let dec' := if val_eqb v v0 then vw_dec π
                                     else dec_add_effect (vw_dec π) in
                         let π' := π <| vw_dec := dec' |>
-                                    <| vw_sttst ::= insert l (StEntry v []) |> in
+                                    <| vw_sttst ::= insert l (StEntry v []) |>
+                                    <| vw_hook_cursor := S l |> in
                         let σ' := env_insert xset (VSetter l p)
                                     (env_insert x v σ) in
                         mret (pop <| mc_focus := FExpr PSucc σ' e2 |>
@@ -376,10 +387,13 @@ Section machine.
                 | Some (p, π') =>
                     if dec_check (vw_dec π') then
                       mret (enter_body PSucc p π' σ body ks pop)
-                    else
-                      (* body settled: deliver the view spec to the frame
-                         below (KInitBody / KReconBody / KCheckBody) *)
+                    else if decide (vw_hook_cursor π' = map_size (vw_sttst π')) then
+                      (* body settled with a consistent hook count: deliver
+                         the view spec to the frame below
+                         (KInitBody / KReconBody / KCheckBody) *)
                       mret (pop <| mc_focus := FVal v |>)
+                    else
+                      Stuck "Rules of Hooks: fewer hooks than in the previous render"
                 | None => Stuck "retry: no render register"
                 end
             | KInitBody p =>
@@ -463,7 +477,7 @@ Section machine.
             | None => Stuck "undefined component"
             | Some (CompDef x body) =>
                 let p := fresh_path (mc_mem c) in
-                let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) in
+                let π0 := MkView C v dec_empty ∅ [] (TConst CUnit) 0 in
                 mret (c <| mc_focus := FBody PInit p π0 [(x, v)] body |>
                         <| mc_stack ::= cons (KInitBody p) |>)
             end

@@ -10,8 +10,12 @@ clean: Makefile.coq
 Makefile.coq: _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
 
-# Forward .vo targets to Makefile.coq.
-%.vo: Makefile.coq
+# Forward .vo targets to Makefile.coq. FORCE makes the recursive make
+# always run, so that Makefile.coq's own dependency tracking decides
+# (a plain pattern rule would consider an existing .vo up to date).
+%.vo: Makefile.coq FORCE
 	+@$(MAKE) -f Makefile.coq $@
 
-.PHONY: all clean
+FORCE:
+
+.PHONY: all clean FORCE

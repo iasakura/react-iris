@@ -67,7 +67,7 @@ Section runtime_rules.
     mem_auth_frag m -∗
     ▷ (mem_auth_frag m -∗
        WP ((FBody PInit (fresh_path m)
-              (MkView C v dec_empty ∅ [] (TConst CUnit)) [(x, v)] body,
+              (MkView C v dec_empty ∅ [] (TConst CUnit) 0) [(x, v)] body,
             KInitBody (fresh_path m) :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FInit (VCompSpec C v), ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -320,8 +320,8 @@ Section runtime_rules.
     δ !! C = Some (CompDef "x" (EConst CUnit)) →
     mem_auth_frag m -∗ reg_token None -∗
     (∀ p, mem_auth_frag
-             (<[p := MkView C v (Decisions false true) ∅ [] (TConst CUnit)]> m) -∗
-          view_ptsto p (MkView C v (Decisions false true) ∅ [] (TConst CUnit)) -∗
+             (<[p := MkView C v (Decisions false true) ∅ [] (TConst CUnit) 0]> m) -∗
+          view_ptsto p (MkView C v (Decisions false true) ∅ [] (TConst CUnit) 0) -∗
           reg_token None -∗
           WP ((FTree (TPath p), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FInit (VCompSpec C v), ks) : expr (reactLang δ)) {{ Φ }}.
@@ -333,7 +333,7 @@ Section runtime_rules.
                               KRetry [("x", v)] (EConst CUnit)
                                 :: KInitBody (fresh_path m) :: ks));
       [done|intros σ; reflexivity|]. iNext.
-    iApply (wp_retry_done with "Hr"); first done. iNext. iIntros "Hr".
+    iApply (wp_retry_done with "Hr"); [done|by vm_compute|]. iNext. iIntros "Hr".
     iApply (wp_mount with "Hm Hr"); first apply fresh_path_fresh.
     iNext. iIntros "Hm Hp Hr".
     iApply (wp_pure_step _ _ (FTree (TConst CUnit), KInitChild (fresh_path m) :: ks));

@@ -63,19 +63,23 @@ Section runtime.
 
   (** [body_spec φ p π0 σ body Ψ]: in phase [φ], from the render context
       [π0], the body evaluates to a view spec [s] leaving a settled view
-      [π'] (no Check decision), and [Ψ π' s] holds. *)
+      [π'] — no Check decision, and as many hooks executed as there are
+      slots (Rules of Hooks, cursor semantics) — and [Ψ π' s] holds. *)
+  Definition settled (π : domains.view) : Prop :=
+    dec_check (vw_dec π) = false ∧ vw_hook_cursor π = map_size (vw_sttst π).
+
   Definition body_spec (φ : phase) (p : path) (π0 : domains.view) (σ : env)
       (body : syntax.expr) (Ψ : domains.view → domains.val → iProp Σ) : iProp Σ :=
     ∀ ks Φ,
       render_ctx p π0 -∗
-      (∀ s π', ⌜dec_check (vw_dec π') = false⌝ -∗
+      (∀ s π', ⌜settled π'⌝ -∗
                render_ctx p π' -∗ Ψ π' s -∗
                WP ((FVal s, ks) : expr (reactLang δ)) {{ Φ }}) -∗
       WP ((FExpr φ σ body, ks) : expr (reactLang δ)) {{ Φ }}.
 
   (** The register content on body entry (Fig. 6, round entry). *)
   Definition enter_view (π : domains.view) : domains.view :=
-    π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |>.
+    π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> <| vw_hook_cursor := 0 |>.
 
   (** Running a body through the retry frame, single round. *)
   Lemma wp_body_once (φ : phase) (p : path) (π : domains.view) (σ : env)
@@ -83,16 +87,16 @@ Section runtime.
       (ks : list machine.frame) Φ :
     body_spec φ p (enter_view π) σ body Ψ -∗
     reg_token None -∗
-    (∀ s π', ⌜dec_check (vw_dec π') = false⌝ -∗
+    (∀ s π', ⌜settled π'⌝ -∗
              render_ctx p π' -∗ Ψ π' s -∗
              WP ((FVal s, ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FBody φ p π σ body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
     iIntros "Hbody Hr Hk".
     iApply (wp_body_enter with "Hr"). iNext. iIntros "Hr".
-    iApply ("Hbody" with "Hr"). iIntros (s π' Hc) "Hr HΨ".
-    iApply (wp_retry_done with "Hr"); first done. iNext. iIntros "Hr".
-    by iApply ("Hk" with "[//] Hr HΨ").
+    iApply ("Hbody" with "Hr"). iIntros (s π' [Hc Hcur]) "Hr HΨ".
+    iApply (wp_retry_done with "Hr"); [done|done|]. iNext. iIntros "Hr".
+    by iApply ("Hk" with "[%] Hr HΨ").
   Qed.
 
   (** ** Mounting a component (INITCOM) *)
@@ -107,9 +111,9 @@ Section runtime.
       (ks : list machine.frame) Φ :
     δ !! C = Some (CompDef x body) →
     body_spec PInit (fresh_path m)
-      (enter_view (MkView C v dec_empty ∅ [] (TConst CUnit))) [(x, v)] body Ψ -∗
+      (enter_view (MkView C v dec_empty ∅ [] (TConst CUnit) 0)) [(x, v)] body Ψ -∗
     mem_auth_frag m -∗ reg_token None -∗
-    (∀ s π', ⌜dec_check (vw_dec π') = false⌝ -∗
+    (∀ s π', ⌜settled π'⌝ -∗
              mem_auth_frag (<[fresh_path m := π']> m) -∗
              view_ptsto (fresh_path m) π' -∗ reg_token None -∗ Ψ π' s -∗
              WP ((FInit s, KInitChild (fresh_path m) :: ks)
@@ -140,7 +144,7 @@ Section runtime.
     δ !! vw_comp π = Some (CompDef x body) →
     body_spec PSucc p (enter_view π) [(x, vw_arg π)] body Ψ -∗
     mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
-    (∀ s π', ⌜dec_check (vw_dec π') = false⌝ -∗
+    (∀ s π', ⌜settled π'⌝ -∗
              mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
              Ψ π' s -∗
              (if dec_effect (vw_dec π') then
@@ -153,7 +157,7 @@ Section runtime.
     iIntros (Hp Hc Hδ) "Hbody Hm Hv Hr Hk".
     iApply (wp_check_enter with "Hm"); [done|done|done|]. iNext. iIntros "Hm".
     iApply (wp_body_once with "Hbody Hr").
-    iIntros (s π' Hc') "Hr HΨ".
+    iIntros (s π' Hs') "Hr HΨ".
     destruct (dec_effect (vw_dec π')) eqn:He.
     - iApply (wp_check_writeback_eff with "Hm Hv Hr"); first done.
       iNext. iIntros "Hm Hv Hr".
@@ -274,14 +278,14 @@ Section pure_subtrees.
     | _ => TConst CUnit
     end.
 
-  Local Lemma list_sum_elem (t : tree) (ts : list tree) :
+  Lemma list_sum_elem (t : tree) (ts : list tree) :
     t ∈ ts → tree_size t ≤ list_sum (map tree_size ts).
   Proof.
     induction ts as [|t' ts IH]; intros Hin; first by inversion Hin.
     inversion Hin; subst; simpl; [lia|]. specialize (IH H1). lia.
   Qed.
 
-  Local Lemma val_sum_elem (v : domains.val) (vs : list domains.val) :
+  Lemma val_sum_elem (v : domains.val) (vs : list domains.val) :
     v ∈ vs → val_size v ≤ list_sum (map val_size vs).
   Proof.
     induction vs as [|v' vs IH]; intros Hin; first by inversion Hin.

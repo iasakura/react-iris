@@ -9,10 +9,12 @@
     - a concrete set of unary/binary primitive operators (comparisons return
       booleans, as in the interpreter, rather than the paper's ℤ×ℤ→ℤ family).
 
-    Hooks carry static labels [ℓ] as in the paper; the top-level-only
-    placement of hooks is captured by the [hook_free]/[body_ok] predicates
-    below (the paper enforces it by parsing, the OCaml implementation by
-    phantom types). *)
+    Hooks carry no syntactic label: under cursor semantics (design
+    decision D2) a hook is identified by its position among the hook
+    calls of a render, and the slot label is the cursor at the call. The
+    top-level-only placement of hooks is captured by the
+    [hook_free]/[body_ok] predicates below (the paper enforces it by
+    parsing, the OCaml implementation by phantom types). *)
 From react_iris Require Import prelude.
 
 Definition var : Set := string.
@@ -36,8 +38,9 @@ Inductive bin_op :=
 
 (** ** Expressions
 
-    [EUseState ℓ x xset e1 e2] is the paper's
-    [let (x, x_set) = useState^ℓ e1 in e2]. *)
+    [EUseState x xset e1 e2] is the paper's
+    [let (x, x_set) = useState^ℓ e1 in e2], without the label: the slot
+    it binds is the one at the render's hook cursor (D2). *)
 Inductive expr :=
   | EConst (k : const)
   | EVar (x : var)
@@ -48,7 +51,7 @@ Inductive expr :=
   | EApp (e1 e2 : expr)
   | ELet (x : var) (e1 e2 : expr)
   | ESeq (e1 e2 : expr)
-  | EUseState (l : label) (x xset : var) (e1 e2 : expr)
+  | EUseState (x xset : var) (e1 e2 : expr)
   | EUseEffect (e : expr)
   | EUop (op : un_op) (e : expr)
   | EBop (op : bin_op) (e1 e2 : expr)
@@ -88,7 +91,7 @@ Fixpoint hook_free (e : expr) : bool :=
   | EApp e1 e2 => hook_free e1 && hook_free e2
   | ELet _ e1 e2 => hook_free e1 && hook_free e2
   | ESeq e1 e2 => hook_free e1 && hook_free e2
-  | EUseState _ _ _ _ _ => false
+  | EUseState _ _ _ _ => false
   | EUseEffect _ => false
   | EUop _ e => hook_free e
   | EBop _ e1 e2 => hook_free e1 && hook_free e2
@@ -99,20 +102,9 @@ Fixpoint body_ok (e : expr) : bool :=
   match e with
   | ELet _ e1 e2 => hook_free e1 && body_ok e2
   | ESeq e1 e2 => body_ok e1 && body_ok e2
-  | EUseState _ _ _ e1 e2 => hook_free e1 && body_ok e2
+  | EUseState _ _ e1 e2 => hook_free e1 && body_ok e2
   | EUseEffect e => hook_free e
   | _ => hook_free e
-  end.
-
-(** Labels of the [useState] hooks along the spine of a component body.
-    Validity (paper Def. 6) states that the state store of a mounted view is
-    keyed exactly by this set. *)
-Fixpoint body_labels (e : expr) : gset label :=
-  match e with
-  | ELet _ _ e2 => body_labels e2
-  | ESeq e1 e2 => body_labels e1 ∪ body_labels e2
-  | EUseState l _ _ _ e2 => {[l]} ∪ body_labels e2
-  | _ => ∅
   end.
 
 Definition comp_def_wf (d : comp_def) : bool := body_ok (cd_body d).

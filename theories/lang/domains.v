@@ -77,8 +77,12 @@ Definition dec_rm_effect (d : decisions) : decisions :=
 
 (** ** State stores (paper: [ρ ::= [ℓ ↦ {val: v, sttq: q}]])
 
-    Queue entries and effect-queue entries are closure values; this is a
-    representation invariant, not enforced by the type. *)
+    Keys are hook slots. With cursor semantics (D2) the key of a
+    [useState] is its position among the hook calls of the render, not
+    the syntactic label; for the paper's fragment (labels 0, 1, ... in
+    call order) the two coincide. Queue entries and effect-queue entries
+    are closure values; this is a representation invariant, not enforced
+    by the type. *)
 Record st_entry := StEntry {
   st_val : val;
   st_queue : list val;
@@ -104,6 +108,15 @@ Record view := MkView {
   vw_sttst : stt_store;
   vw_effq : list val;
   vw_child : tree;
+  (** The hook cursor (design decision D2, cursor semantics): the slot
+      label the next hook call of this render will take — equivalently,
+      how many hooks have run so far in this render. Slots are keyed by
+      call order, as in React, so a hook's label is not written in the
+      program: it is this field at the moment the hook runs. Reset to 0
+      on body entry; the value persisted with a mounted view is the
+      number of hooks of its last render, and settling with a cursor
+      short of the slot count is a Rules-of-Hooks violation. *)
+  vw_hook_cursor : label;
 }.
 
 Definition tree_mem : Type := gmap path view.
@@ -152,7 +165,7 @@ Global Instance st_entry_settable : Settable st_entry :=
 Global Instance decisions_settable : Settable decisions :=
   settable! Decisions <dec_check; dec_effect>.
 Global Instance view_settable : Settable view :=
-  settable! MkView <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child>.
+  settable! MkView <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child; vw_hook_cursor>.
 Global Instance config_settable : Settable config :=
   settable! Config <c_tree; c_mem; c_out; c_mode>.
 

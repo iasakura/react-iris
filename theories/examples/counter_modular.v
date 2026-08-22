@@ -2,7 +2,7 @@
 
     ** What is verified
 
-    The paper's Counter ([counter_prog], programs.v):
+    The paper's Counter:
 <<
 let Counter x =
   print "Counter";
@@ -18,7 +18,10 @@ Counter 0
       ["Counter"; "Return"] ++ ["Counter"; "Update"; "Return"]^|clicks|;
     - [counter_root_adequate]: Counter refines the abstract LTS
       [counter_lts] (states ℤ, initial 0, the click adds 2, display shows
-      the state), through [root_adequacy] (component.v).
+      the state), through [root_adequacy] (component.v);
+    - [counter_leaf_adequate]: the same refinement, obtained *without*
+      the hand-proved run lemmas — the body and handler specifications
+      are handed to the generic leaf render loop of [logic/root.v].
 
     The proofs are driven by the runtime lemmas ([wp_init_component] /
     [wp_check_component] / [wp_event_dispatch], runtime.v) and by
@@ -29,13 +32,40 @@ Counter 0
     executing the machine ([wp_mrun_ok]). *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains notation interp machine.
-From react_iris.examples Require Import programs.
-From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime adequacy component.
+From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime
+  adequacy component root.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre adequacy.
 From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
+
+(** ** Counter (§2.1 of the paper) — queued functional updates
+
+<<
+let Counter x =
+  print "Counter";
+  let (s, setS) = useState x in
+  print "Return";
+  [s, button (fun _ ->
+    setS (fun s -> s + 1);
+    setS (fun s -> print "Update"; s + 1))];;
+Counter 0
+>>
+
+    The second updater prints, so its state update is not pure — the
+    paper's example of the update-timing puzzle ("Update" is printed
+    during the next render). *)
+Definition counter_body : syntax.expr :=
+  (print: Str "Counter" ;;
+   let: "s", "setS" := useState "x" in
+   print: Str "Return" ;;
+   ⟪ "s";
+     λ: "_", "setS" (λ: "s", "s" + 1) ;;
+             "setS" (λ: "s", print: Str "Update" ;; "s" + 1) ⟫)%r.
+
+Definition counter_prog : prog :=
+  Prog [("Counter", CompDef "x" counter_body)] (Comp "Counter" 0)%r.
 
 (** ** The specification: an abstract LTS *)
 Definition counter_lts : root_spec := {|
@@ -65,13 +95,13 @@ Section counter_modular.
 
   (** The two updaters a click queues on slot 0, in the handler's
       environment. *)
-  Local Definition henv (p : path) (ns nx : Z) : env :=
+  Definition henv (p : path) (ns nx : Z) : env :=
     env_insert "_" (VConst CUnit)
       (env_insert "setS" (VSetter 0 p)
          (env_insert "s" (cint ns) [("x", cint nx)])).
-  Local Definition cl1 (p : path) (ns nx : Z) : domains.val :=
+  Definition cl1 (p : path) (ns nx : Z) : domains.val :=
     VClos "s" ("s" + 1)%r (henv p ns nx).
-  Local Definition cl2 (p : path) (ns nx : Z) : domains.val :=
+  Definition cl2 (p : path) (ns nx : Z) : domains.val :=
     VClos "s" (print: Str "Update" ;; "s" + 1)%r (henv p ns nx).
 
   (** ** State-side data: the quiescent view and the outputs
@@ -84,12 +114,18 @@ Section counter_modular.
     ("setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", print: Str "Update" ;; "s" + 1))%r.
 
   Local Definition Π (n : Z) : domains.view :=
-    MkView "Counter" (cint 0) (Decisions false false)
-      (<[0 := StEntry (cint n) []]> ∅) []
-      (TList [TConst (CInt n);
+    {|
+       vw_comp := "Counter";
+       vw_arg := cint 0;
+       vw_dec := Decisions false false;
+       vw_sttst := <[0 := StEntry (cint n) []]> ∅;
+       vw_effq := [];
+       vw_child := TList [TConst (CInt n);
               TClos "_" hbody
                 (env_insert "setS" (VSetter 0 0)
-                   (env_insert "s" (cint n) [("x", cint 0)]))]).
+                   (env_insert "s" (cint n) [("x", cint 0)]))];
+       vw_hook_cursor := 1
+     |}.
 
   (** The invariant across events: [Π n] in memory, output [ω]. *)
   Local Definition I (n : Z) (ω : out_buf) : iProp Σ :=
@@ -111,15 +147,17 @@ Section counter_modular.
       prints "Return", and returns the view spec [[n; handler]]. *)
   Lemma counter_body_init (n : Z) (p : path) (π : domains.view)
       (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
+    vw_hook_cursor π = 0 →
     render_ctx p π -∗ out_frag ω -∗
-    (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>) -∗
+    (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>
+                     <| vw_hook_cursor := 1 |>) -∗
      out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
      WP ((FVal (VList [VConst (CInt n); counter_handler p n n]), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit [("x", VConst (CInt n))] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros "Hr Ho Hwp".
+    iIntros (Hcur) "Hr Ho Hwp".
     rewrite /counter_body.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
@@ -127,6 +165,7 @@ Section counter_modular.
     iApply (wp_usestate_init with "Hr"). iNext. iIntros "Hr".
     wp_pure.
     iApply (wp_usestate_mount with "Hr"). iNext. iIntros "Hr".
+    rewrite Hcur.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     do 6 wp_pure.
@@ -142,6 +181,7 @@ Section counter_modular.
   Lemma counter_body_succ (nx n : Z) (q : list domains.val)
       (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
       (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
     queue_pure δ is_int q fs -∗
     render_ctx p π -∗ out_frag ω -∗
@@ -153,7 +193,7 @@ Section counter_modular.
     WP ((FExpr PSucc [("x", VConst (CInt nx))] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "#Hq Hr Ho Hwp".
+    iIntros (Hcur Hl) "#Hq Hr Ho Hwp".
     iPoseProof "Hq" as "[%Hdom _]".
     pose proof (fold_upd_dom is_int fs (VConst (CInt n)) Hdom (ex_intro _ n eq_refl))
       as [n' Hn'].
@@ -161,8 +201,8 @@ Section counter_modular.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     wp_pure.
-    iApply (wp_usestate_succ_pure with "Hq Hr"); [done|by exists n|].
-    iIntros "Hr". rewrite Hn'.
+    iApply (wp_usestate_succ_pure with "Hq Hr"); [by rewrite Hcur|by exists n|].
+    iIntros "Hr". rewrite Hn' Hcur.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     do 6 wp_pure.
@@ -218,6 +258,7 @@ Section counter_modular.
   Lemma counter_body_succ_click (narg n ns nx : Z) (p : path)
       (π : domains.view) (ω : out_buf) (ks : list machine.frame)
       (Φ : mval → iProp Σ) :
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint n) [cl1 p ns nx; cl2 p ns nx]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (commit_slot π 0 (cint n) (cint (n + 1 + 1))) -∗
@@ -228,12 +269,13 @@ Section counter_modular.
     WP ((FExpr PSucc [("x", cint narg)] counter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
   Proof.
-    iIntros (Hl) "Hr Ho Hwp".
+    iIntros (Hcur Hl) "Hr Ho Hwp".
     rewrite /counter_body.
     wp_pure. wp_pure. wp_pure.
     iApply (wp_print with "Ho"). iNext. iIntros "Ho".
     wp_pure.
-    iApply (wp_usestate_succ_cons with "Hr"); first done. iNext. iIntros "Hr".
+    iApply (wp_usestate_succ_cons with "Hr"); first by rewrite Hcur. iNext. iIntros "Hr".
+    rewrite Hcur.
     do 5 wp_pure.
     iApply (wp_sttfold_cons with "Hr"). iNext. iIntros "Hr".
     do 3 wp_pure.
@@ -265,16 +307,24 @@ Section counter_modular.
     (* main expression: Counter 0 evaluates to ⟨Counter, 0⟩; STEPINIT *)
     do 6 wp_pure.
     (* INITCOM with the Init-phase body spec *)
-    set (π1 := enter_view (MkView "Counter" (cint 0) dec_empty ∅ [] (TConst CUnit))
-                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |>).
+    set (π1 := enter_view ({|
+       vw_comp := "Counter";
+       vw_arg := cint 0;
+       vw_dec := dec_empty;
+       vw_sttst := ∅;
+       vw_effq := [];
+       vw_child := TConst CUnit;
+       vw_hook_cursor := 0
+     |})
+                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_hook_cursor := 1 |>).
     set (s1 := VList [cint 0; counter_handler (fresh_path ∅) 0 0]).
     iApply (wp_init_component _ _ _ _ _ _
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = s1⌝ ∗ out_frag ω_mount)%I) with "[Ho] Hm Hr").
     { done. }
     { iIntros (ks Φ') "Hr Hk'".
-      iApply (counter_body_init 0 with "Hr Ho").
+      iApply (counter_body_init 0 with "Hr Ho"); first done.
       iIntros "Hr Ho".
-      iApply ("Hk'" $! s1 π1 with "[//] Hr [Ho]"). by iFrame. }
+      iApply ("Hk'" $! s1 π1 with "[%] Hr [Ho]"); [split; by vm_compute|by iFrame]. }
     iIntros (s π' _) "Hm Hp Hr (-> & -> & Ho)".
     iEval (change (fresh_path ∅) with 0%nat) in "Hm Hp".
     iEval (change (fresh_path ∅) with 0%nat).
@@ -329,7 +379,8 @@ Section counter_modular.
     (* re-render: CHECK with the Succ-phase body spec *)
     wp_pure.
     set (π5 := enter_view π4 <| vw_dec ::= dec_add_effect |>
-                 <| vw_sttst ::= <[0:=StEntry (cint (n + 1 + 1)) []]> |>).
+                 <| vw_sttst ::= <[0:=StEntry (cint (n + 1 + 1)) []]> |>
+                 <| vw_hook_cursor := 1 |>).
     set (s5 := VList [cint (n + 1 + 1); counter_handler 0 (n + 1 + 1) 0]).
     iApply (wp_check_component _ 0 π4 "x" counter_body _
               (λ π' s, (⌜π' = π5⌝ ∗ ⌜s = s5⌝ ∗ out_frag (ω ++ ω_click))%I)
@@ -340,8 +391,9 @@ Section counter_modular.
     { iIntros (ks' Φ') "Hr Hk'".
       iApply (counter_body_succ_click 0 n n 0 with "Hr Ho").
       { by vm_compute. }
+      { by vm_compute. }
       iIntros "Hr Ho".
-      iApply ("Hk'" $! s5 π5 with "[//] [Hr] [Ho]"); last by iFrame.
+      iApply ("Hk'" $! s5 π5 with "[%] [Hr] [Ho]"); [split; by vm_compute| |by iFrame].
       (* the folded value differs from the committed one: Effect *)
       rewrite /commit_slot /val_eqb bool_decide_eq_false_2 //.
       intros [=]. lia. }
@@ -445,6 +497,110 @@ Section counter_modular.
     - iIntros "!>" (a m ω) "[%Hm (Hm & _ & _ & Ho)]". subst m.
       iFrame. iPureIntro. apply display_Π.
   Qed.
+
+  (** ** The same refinement through the generic render loop (root.v)
+
+      Counter is a *leaf root*: one component whose rendered child holds
+      no component and which registers no effects. So the render loop
+      need not be replayed by hand — [leaf_root_obligations] runs it once
+      and for all, and the client supplies only the three specifications
+      above ([counter_body_init], [counter_handler_spec],
+      [counter_body_succ_click]). Compare [counter_mount] /
+      [counter_click_step], which do the same work per component. *)
+
+  (** ** The leaf data: Counter's views per abstract state *)
+
+  (** The view a click leaves at state [a]: both updaters queued on
+      slot 0, Check on, everything else as at quiescence. *)
+  Definition counter_click_view (a : Z) : domains.view :=
+    {|
+       vw_comp := "Counter";
+       vw_arg := VConst (CInt 0);
+       vw_dec := Decisions true false;
+       vw_sttst := <[0 := StEntry (VConst (CInt a)) [cl1 0 a 0; cl2 0 a 0]]> ∅;
+       vw_effq := [];
+       vw_child := tree_of (VList [VConst (CInt a); counter_handler 0 a 0]);
+       vw_hook_cursor := 1
+     |}.
+
+  Definition counter_leaf : leaf_data counter_lts :=
+    LeafData counter_lts "Counter" "x" counter_body (VConst (CInt 0))
+      (λ a, <[0 := StEntry (VConst (CInt a)) []]> ∅)                (* slot table *)
+      (λ a, VList [VConst (CInt a); counter_handler 0 a 0])          (* view spec *)
+      (λ a i π, π = counter_click_view a).                           (* after a click *)
+
+  (** ** The obligations: only the body and handler specifications *)
+
+  Lemma counter_leaf_obligations :
+    ⊢ leaf_obligations δ counter_lts counter_leaf.
+  Proof.
+    rewrite /leaf_obligations.
+    iSplit; [iPureIntro; by vm_compute|].
+    iSplit.
+    { iPureIntro. intros a. split; [cbn; by repeat constructor|cbn; lia]. }
+    iSplit; [iPureIntro; intros a; reflexivity|].
+    iSplit.
+    { iPureIntro. intros a i ->. by eexists _, _, _. }
+    iSplit.
+    { iPureIntro. intros a i π ->. split_and!; reflexivity. }
+    iSplit.
+    { iPureIntro. intros a i π -> Hc. discriminate Hc. }
+    iSplit.
+    { (* Init: [counter_body_init] *)
+      iIntros "!>" (ω ks Φ) "Hr Ho Hk".
+      iApply (counter_body_init 0 with "Hr Ho"); first done.
+      iIntros "Hr Ho".
+      assert (init_ctx counter_lts counter_leaf
+                <| vw_sttst ::= insert 0 (StEntry (VConst (CInt 0)) []) |>
+                <| vw_hook_cursor := 1 |>
+              = bview counter_lts counter_leaf 0%Z (TConst CUnit)) as Hq
+        by reflexivity.
+      iEval (rewrite Hq) in "Hr".
+      by iApply ("Hk" $! 0%Z with "[//] Hr Ho"). }
+    iSplit.
+    { (* Handler: [counter_handler_spec] *)
+      iIntros "!>" (a i x e σ ω ks Φ) "%Hvalid %Hlk Hm Hp Hr Ho Hk".
+      hnf in Hvalid; subst i.
+      vm_compute in Hlk. simplify_eq.
+      iApply (counter_handler_spec a 0 0
+                (qview counter_lts counter_leaf a) (StEntry (cint a) [])
+                with "Hm Hp Hr").
+      { by rewrite lookup_insert_eq. }
+      { done. }
+      iIntros "Hm Hp Hr".
+      iEval (rewrite insert_insert_eq) in "Hm".
+      iApply ("Hk" $! (VConst CUnit) _ ω with "[] Hm Hp Hr Ho").
+      iPureIntro. vm_compute. reflexivity. }
+    (* Succ: [counter_body_succ_click] *)
+    iIntros "!>" (a i π ω ks Φ) "%Hpost %Hcheck Hr Ho Hk".
+    hnf in Hpost; subst π.
+    iApply (counter_body_succ_click 0 a a 0 0 (enter_view (counter_click_view a))
+              with "Hr Ho"); [done|done|].
+    iIntros "Hr Ho".
+    assert (commit_slot (enter_view (counter_click_view a)) 0
+              (cint a) (cint (a + 1 + 1))
+            = bview counter_lts counter_leaf (a + 1 + 1)%Z
+                (tree_of (ld_spec counter_leaf a))
+              <| vw_dec := Decisions false true |>) as Hq.
+    { rewrite /commit_slot /val_eqb bool_decide_eq_false_2 //.
+      intros [=]. lia. }
+    iEval (rewrite Hq) in "Hr".
+    iApply ("Hk" $! (a + 1 + 1)%Z true with "[] [] Hr Ho").
+    { iPureIntro. hnf. lia. }
+    { iPureIntro. by intros [=]. }
+  Qed.
+
+  (** ** The root obligations, from the generic loop *)
+
+  Lemma counter_leaf_root_obligations :
+    ⊢ root_obligations δ counter_prog counter_lts
+        (leaf_inv counter_lts counter_leaf).
+  Proof.
+    iApply (leaf_root_obligations with "[] []").
+    - iApply main_spec_const; reflexivity.
+    - iApply counter_leaf_obligations.
+  Qed.
+
 End counter_modular.
 
 (** All-zero traces are admissible. *)
@@ -505,4 +661,23 @@ Proof.
                             [VConst (CString "Counter"); VConst (CString "Update");
                              VConst (CString "Return")]))).
   intros HI HR. by iApply counter_trace_wp.
+Qed.
+
+(** Counter refines its abstract LTS — same statement as
+    [counter_root_adequate], derived through the generic render loop. *)
+Corollary counter_leaf_adequate (evs : list nat) :
+  Forall (λ i, i = 0%nat) evs →
+  adequate NotStuck
+    (cfg_expr (machine_init_cfg counter_prog evs)
+       : expr (reactLang (prog_def_table counter_prog)))
+    (cfg_state (machine_init_cfg counter_prog evs))
+    (λ w σ, ∃ a0 a', rs_init counter_lts a0 ∧ rs_reach counter_lts a0 evs a' ∧
+                     w = MIdle (TPath 0) ∧
+                     display_t 1000 (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
+Proof.
+  intros Hall.
+  apply (root_adequacy reactΣ counter_prog counter_lts
+           (λ _ HR, @leaf_inv reactΣ HR counter_lts counter_leaf)).
+  { intros a _. by apply counter_admissible. }
+  intros HI HR. apply counter_leaf_root_obligations.
 Qed.
