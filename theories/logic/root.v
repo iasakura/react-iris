@@ -191,7 +191,7 @@ Section leaf_root.
 
   Definition leaf_inv (a : rs_A S) (m : tree_mem) (ω : out_buf) : iProp Σ :=
     ⌜m = <[(0:path) := qview a]> ∅⌝ ∗
-    mem_auth_frag m ∗ view_ptsto 0 (qview a) ∗ reg_token None ∗ out_frag ω.
+    mem_auth_frag m ∗ view_ptsto 0 (qview a) ∗ render_idle ∗ out_frag ω.
 
   (** The initial render context of the root. *)
   Definition init_ctx : domains.view :=
@@ -232,10 +232,10 @@ Section leaf_root.
        ⌜rs_valid S a i⌝ -∗
        ⌜handlers_free (tree_of (ld_spec L a)) !! i = Some (VClos x e σ)⌝ -∗
        mem_auth_frag (<[(0:path) := qview a]> ∅) -∗ view_ptsto 0 (qview a) -∗
-       reg_token None -∗ out_frag ω -∗
+       render_idle -∗ out_frag ω -∗
        (∀ v π ω', ⌜ld_hpost L a i π⌝ -∗
           mem_auth_frag (<[(0:path) := π]> ∅) -∗ view_ptsto 0 π -∗
-          reg_token None -∗ out_frag ω' -∗
+          render_idle -∗ out_frag ω' -∗
           WP ((FVal v, ks) : expr (reactLang δ)) {{ Φ }}) -∗
        WP ((FExpr PNormal (env_insert x (VConst CUnit) σ) e, ks) : expr (reactLang δ)) {{ Φ }}) ∗
     (* the body in Succ phase, after a handler that turned Check on: it
@@ -267,7 +267,7 @@ Section leaf_root.
       state. *)
   Lemma leaf_mount (ks : list machine.frame) Φ :
     leaf_obligations -∗
-    mem_auth_frag ∅ -∗ reg_token None -∗ out_frag [] -∗
+    mem_auth_frag ∅ -∗ render_idle -∗ out_frag [] -∗
     (∀ a m ω, ⌜rs_init S a⌝ -∗ leaf_inv a m ω -∗
        WP ((FIdle (TPath 0), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FInit (VCompSpec (ld_C L) (ld_v L)), KMainMounted :: ks) : expr (reactLang δ)) {{ Φ }}.

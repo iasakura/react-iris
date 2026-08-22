@@ -24,7 +24,7 @@
     Notations are printing-only sugar over the constructors: terms are
     unchanged, so proofs about programs written either way coincide. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax.
+From react_iris.lang Require Import syntax domains.
 
 (* Not Iris's [expr_scope] (key [%r]), which the [WP] notation applies to
    its expression argument: our numerals and keywords must not leak into
@@ -96,3 +96,10 @@ Notation "'print:' e" := (EPrint e%r) (at level 10, e at level 10) : react_scope
 Notation "⟪ ⟫" := (EView nil) : react_scope.
 Notation "⟪ e1 ; .. ; en ⟫" :=
   (EView (cons (e1%r : expr) .. (cons (en%r : expr) nil) ..)) : react_scope.
+
+(** ** Values
+
+    [cint n] abbreviates the integer *value* [VConst (CInt n)] — used
+    throughout the logic and the examples when stating what a run
+    computes (not part of the surface syntax, which is about [expr]). *)
+Notation "'cint' n" := (VConst (CInt n)) (at level 10).

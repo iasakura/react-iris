@@ -71,7 +71,6 @@ Section custom_hook.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
-  Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
   (** ** Program-side data: the closure the hook returns *)
 

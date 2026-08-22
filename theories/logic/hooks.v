@@ -51,10 +51,6 @@ Section hooks.
 
   Implicit Types Φ : mval → iProp Σ.
 
-  (** ** Render context *)
-  Definition render_ctx (p : path) (π : domains.view) : iProp Σ :=
-    reg_token (Some (p, π)).
-
   (** ** Updater purity *)
 
   (** [f] realizes the closure [cl] on domain [D], with no effect on any
@@ -194,12 +190,12 @@ Section hooks.
       (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p' = Some π →
     vw_sttst π !! l = Some ent →
-    mem_auth_frag m -∗ view_ptsto p' π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p' π -∗ render_idle -∗
     ▷ (let π' := π <| vw_dec ::= dec_add_check |>
                    <| vw_sttst ::=
                         insert l (ent <| st_queue ::=
                                           (λ q, q ++ [VClos xi ei σi]) |>) |> in
-       mem_auth_frag (<[p':=π']> m) -∗ view_ptsto p' π' -∗ reg_token None -∗
+       mem_auth_frag (<[p':=π']> m) -∗ view_ptsto p' π' -∗ render_idle -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal (VClos xi ei σi), KAppR PNormal (VSetter l p') :: ks)
         : expr (reactLang δ)) {{ Φ }}.

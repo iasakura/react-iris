@@ -107,11 +107,11 @@ Section slots.
     (∀ v, D v → D (f v)) →
     upd_pure δ D (VClos xi ei σi) f -∗
     latest_state γ a -∗ slot_res D γ ent -∗
-    mem_auth_frag m -∗ view_ptsto p' π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p' π -∗ render_idle -∗
     ▷ (let ent' := ent <| st_queue ::= (λ q, q ++ [VClos xi ei σi]) |> in
        let π' := π <| vw_dec ::= dec_add_check |> <| vw_sttst ::= insert l ent' |> in
        latest_state γ (f a) -∗ slot_res D γ ent' -∗
-       mem_auth_frag (<[p':=π']> m) -∗ view_ptsto p' π' -∗ reg_token None -∗
+       mem_auth_frag (<[p':=π']> m) -∗ view_ptsto p' π' -∗ render_idle -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal (VClos xi ei σi), KAppR PNormal (VSetter l p') :: ks)
         : expr (reactLang δ)) {{ Φ }}.

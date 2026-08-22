@@ -49,7 +49,6 @@ Section pure_counter.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
-  Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
   (** ** Program-side data: what the run creates from [pure_counter_body]
 
@@ -81,9 +80,9 @@ Section pure_counter.
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
     latest_state γ (cint n) -∗ slot_res δ is_int γ ent -∗
-    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π -∗ render_idle -∗
     (∀ π' ent', latest_state γ (cint (n + 1 + 1)) -∗ slot_res δ is_int γ ent' -∗
-       mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+       mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
                           (env_insert "setS" (VSetter 0 p)

@@ -67,7 +67,6 @@ Section selfcounter.
   Context `{!invGS Σ, !reactGS Σ}.
 
   Local Definition δ : def_table := prog_def_table selfcounter_prog.
-  Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
   (** ** Program-side data: what the run creates from [selfcounter_body]
 
@@ -105,7 +104,7 @@ Section selfcounter.
   (** [A k ω]: the machine is about to commit the pending effect
       (STEPEFFECT) with the memory holding [ΠA k] and output [ω]. *)
   Local Definition A (k : Z) (ω : out_buf) : iProp Σ :=
-    mem_auth_frag (<[0 := ΠA k]> ∅) ∗ view_ptsto 0 (ΠA k) ∗ reg_token None ∗ out_frag ω.
+    mem_auth_frag (<[0 := ΠA k]> ∅) ∗ view_ptsto 0 (ΠA k) ∗ render_idle ∗ out_frag ω.
 
   Local Definition ω_mount : out_buf := [cint 0; VConst (CString "Return")].
   Local Definition ω_cycle (k : Z) : out_buf :=
@@ -215,10 +214,10 @@ Section selfcounter.
     (k < 3)%Z →
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
-    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗ out_frag ω -∗
+    mem_auth_frag m -∗ view_ptsto p π -∗ render_idle -∗ out_frag ω -∗
     (let π' := π <| vw_dec ::= dec_add_check |>
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [inc p k]) |>) |> in
-     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
      out_frag (ω ++ [VConst (CString "Effect")]) -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal (benv p k) eff_body, ks) : expr (reactLang δ)) {{ Φ }}.
@@ -284,9 +283,9 @@ Section selfcounter.
     iApply (wp_commit_effects _
               (λ i, match i with
                     | 0%nat => mem_auth_frag (<[0:=ΠA k]> ∅) ∗ view_ptsto 0 (ΠA k) ∗
-                               reg_token None ∗ out_frag ω
+                               render_idle ∗ out_frag ω
                     | _ => mem_auth_frag (<[0:=ΠB]> ∅) ∗ view_ptsto 0 ΠB ∗
-                           reg_token None ∗ out_frag (ω ++ [VConst (CString "Effect")])
+                           render_idle ∗ out_frag (ω ++ [VConst (CString "Effect")])
                     end)%I
               with "[] [Hm Hp Hr Ho]"); [by left| | by iFrame |].
     { (* the effect at [k < 3] *)

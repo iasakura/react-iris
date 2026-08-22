@@ -86,7 +86,7 @@ Section runtime.
       (body : syntax.expr) (Ψ : domains.view → domains.val → iProp Σ)
       (ks : list machine.frame) Φ :
     body_spec φ p (enter_view π) σ body Ψ -∗
-    reg_token None -∗
+    render_idle -∗
     (∀ s π', ⌜settled π'⌝ -∗
              render_ctx p π' -∗ Ψ π' s -∗
              WP ((FVal s, ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -112,10 +112,10 @@ Section runtime.
     δ !! C = Some (CompDef x body) →
     body_spec PInit (fresh_path m)
       (enter_view (MkView C v dec_empty ∅ [] (TConst CUnit) 0)) [(x, v)] body Ψ -∗
-    mem_auth_frag m -∗ reg_token None -∗
+    mem_auth_frag m -∗ render_idle -∗
     (∀ s π', ⌜settled π'⌝ -∗
              mem_auth_frag (<[fresh_path m := π']> m) -∗
-             view_ptsto (fresh_path m) π' -∗ reg_token None -∗ Ψ π' s -∗
+             view_ptsto (fresh_path m) π' -∗ render_idle -∗ Ψ π' s -∗
              WP ((FInit s, KInitChild (fresh_path m) :: ks)
                  : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FInit (VCompSpec C v), ks) : expr (reactLang δ)) {{ Φ }}.
@@ -143,9 +143,9 @@ Section runtime.
     dec_check (vw_dec π) = true →
     δ !! vw_comp π = Some (CompDef x body) →
     body_spec PSucc p (enter_view π) [(x, vw_arg π)] body Ψ -∗
-    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π -∗ render_idle -∗
     (∀ s π', ⌜settled π'⌝ -∗
-             mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+             mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
              Ψ π' s -∗
              (if dec_effect (vw_dec π') then
                 WP ((FRecon (vw_child π) s, KCheckRecon p :: ks)
