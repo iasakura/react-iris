@@ -63,6 +63,13 @@ Section resources.
     out_frag (mc_out c).
 End resources.
 
+(** The register as every layer above the parametric rules sees it:
+    [render_ctx p π] during a render (the view under construction at
+    path [p]), [render_idle] outside rendering. Abbreviations for
+    [reg_token], so the layers above never spell the register out. *)
+Notation render_ctx p π := (reg_token (Some (p, π))).
+Notation render_idle := (reg_token None).
+
 Section iris_instance.
   Context `{!invGS Σ, !reactGS Σ}.
 

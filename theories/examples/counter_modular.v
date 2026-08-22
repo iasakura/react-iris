@@ -129,7 +129,7 @@ Section counter_modular.
 
   (** The invariant across events: [Π n] in memory, output [ω]. *)
   Local Definition I (n : Z) (ω : out_buf) : iProp Σ :=
-    mem_auth_frag (<[0 := Π n]> ∅) ∗ view_ptsto 0 (Π n) ∗ reg_token None ∗ out_frag ω.
+    mem_auth_frag (<[0 := Π n]> ∅) ∗ view_ptsto 0 (Π n) ∗ render_idle ∗ out_frag ω.
 
   Local Definition ω_mount : out_buf :=
     [VConst (CString "Counter"); VConst (CString "Return")].
@@ -220,7 +220,7 @@ Section counter_modular.
       (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
-    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π -∗ render_idle -∗
     (let henv := env_insert "_" (VConst CUnit)
                    (env_insert "setS" (VSetter 0 p)
                       (env_insert "s" (VConst (CInt ns)) [("x", VConst (CInt nx))])) in
@@ -228,7 +228,7 @@ Section counter_modular.
      let cl2 := VClos "s" (print: Str "Update" ;; "s" + 1)%r henv in
      let π' := π <| vw_dec ::= dec_add_check |>
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [cl1; cl2]) |>) |> in
-     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal (env_insert "_" (VConst CUnit)
                           (env_insert "setS" (VSetter 0 p)

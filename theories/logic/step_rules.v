@@ -146,8 +146,7 @@ Section step_rules.
       (body : syntax.expr) (ks : list machine.frame)
       (r : option (path * domains.view)) Φ :
     reg_token r -∗
-    ▷ (reg_token (Some (p, π <| vw_dec ::= dec_rm_check |>
-                              <| vw_effq := [] |> <| vw_hook_cursor := 0 |>)) -∗
+    ▷ (render_ctx p (π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> <| vw_hook_cursor := 0 |>) -∗
        WP ((FExpr φ σb body, KRetry σb body :: ks)
            : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FBody φ p π σb body, ks) : expr (reactLang δ)) {{ Φ }}.
@@ -158,8 +157,8 @@ Section step_rules.
       when the value comes back.) *)
   Lemma wp_usestate_init (x xset : var) (e1 e2 : syntax.expr)
       (σb : env) (p : path) (π : domains.view) (ks : list machine.frame) Φ :
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p π -∗
        WP ((FExpr PInit σb e1, KUseState σb x xset e2 :: ks)
            : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit σb (EUseState x xset e1 e2), ks)
@@ -171,8 +170,8 @@ Section step_rules.
   Lemma wp_usestate_bind (v : domains.val) (σb : env) (x xset : var)
       (e2 : syntax.expr) (p : path) (π : domains.view)
       (ks : list machine.frame) Φ :
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |> <| vw_hook_cursor := S (vw_hook_cursor π) |>)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |> <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
        WP ((FExpr PInit (env_insert xset (VSetter (vw_hook_cursor π) p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal v, KUseState σb x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
@@ -184,9 +183,8 @@ Section step_rules.
       (σb : env) (p : path) (π : domains.view) (v0 : domains.val)
       (ks : list machine.frame) Φ :
     vw_sttst π !! vw_hook_cursor π = Some (StEntry v0 []) →
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v0 []) |>
-                              <| vw_hook_cursor := S (vw_hook_cursor π) |>)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v0 []) |> <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
        WP ((FExpr PSucc (env_insert xset (VSetter (vw_hook_cursor π) p) (env_insert x v0 σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState x xset e1 e2), ks)
@@ -203,8 +201,8 @@ Section step_rules.
       (ei : syntax.expr) (σi : env) (q : list domains.val)
       (ks : list machine.frame) Φ :
     vw_sttst π !! vw_hook_cursor π = Some (StEntry v0 (VClos xi ei σi :: q)) →
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p π -∗
        WP ((FExpr PSucc (env_insert xi v0 σi) ei,
             KSttFold σb (vw_hook_cursor π) x xset e2 v0 q :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState x xset e1 e2), ks)
@@ -219,8 +217,8 @@ Section step_rules.
   Lemma wp_sttfold_nil (v : domains.val) (σb : env) (l : label) (x xset : var)
       (e2 : syntax.expr) (v0 : domains.val) (p : path) (π : domains.view)
       (ks : list machine.frame) Φ :
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π <| vw_dec := (if val_eqb v v0 then vw_dec π else dec_add_effect (vw_dec π)) |> <| vw_sttst ::= insert l (StEntry v []) |> <| vw_hook_cursor := S l |>)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p (π <| vw_dec := (if val_eqb v v0 then vw_dec π else dec_add_effect (vw_dec π)) |> <| vw_sttst ::= insert l (StEntry v []) |> <| vw_hook_cursor := S l |>) -∗
        WP ((FExpr PSucc (env_insert xset (VSetter l p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal v, KSttFold σb l x xset e2 v0 [] :: ks)
@@ -232,8 +230,8 @@ Section step_rules.
       (x xset : var) (e2 : syntax.expr) (v0 : domains.val) (xi : var)
       (ei : syntax.expr) (σi : env) (q : list domains.val) (p : path)
       (π : domains.view) (ks : list machine.frame) Φ :
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token (Some (p, π)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p π -∗
        WP ((FExpr PSucc (env_insert xi v σi) ei,
             KSttFold σb l x xset e2 v0 q :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal v, KSttFold σb l x xset e2 v0 (VClos xi ei σi :: q) :: ks)
@@ -244,9 +242,8 @@ Section step_rules.
   Lemma wp_useeffect (φ : phase) (e' : syntax.expr) (σb : env) (p : path)
       (π : domains.view) (ks : list machine.frame) Φ :
     φ ≠ PNormal →
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token
-         (Some (p, π <| vw_effq ::= (λ q, q ++ [VClos "_" e' σb]) |>)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p (π <| vw_effq ::= (λ q, q ++ [VClos "_" e' σb]) |>) -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr φ σb (EUseEffect e'), ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -261,12 +258,8 @@ Section step_rules.
       (ks : list machine.frame) Φ :
     φ ≠ PNormal →
     vw_sttst π !! l = Some ent →
-    reg_token (Some (p, π)) -∗
-    ▷ (reg_token
-         (Some (p, π <| vw_dec ::= dec_add_check |>
-                     <| vw_sttst ::=
-                          insert l (ent <| st_queue ::=
-                                            (λ q, q ++ [VClos xi ei σi]) |>) |>)) -∗
+    render_ctx p π -∗
+    ▷ (render_ctx p (π <| vw_dec ::= dec_add_check |> <| vw_sttst ::= insert l (ent <| st_queue ::= (λ q, q ++ [VClos xi ei σi]) |>) |>) -∗
        WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal (VClos xi ei σi), KAppR φ (VSetter l p) :: ks)
         : expr (reactLang δ)) {{ Φ }}.
@@ -283,8 +276,8 @@ Section step_rules.
       (p : path) (π' : domains.view) (ks : list machine.frame) Φ :
     dec_check (vw_dec π') = false →
     vw_hook_cursor π' = map_size (vw_sttst π') →
-    reg_token (Some (p, π')) -∗
-    ▷ (reg_token (Some (p, π')) -∗
+    render_ctx p π' -∗
+    ▷ (render_ctx p π' -∗
        WP ((FVal s, ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s, KRetry σb body :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -297,9 +290,8 @@ Section step_rules.
   Lemma wp_retry_again (s : domains.val) (σb : env) (body : syntax.expr)
       (p : path) (π' : domains.view) (ks : list machine.frame) Φ :
     dec_check (vw_dec π') = true →
-    reg_token (Some (p, π')) -∗
-    ▷ (reg_token (Some (p, π' <| vw_dec ::= dec_rm_check |>
-                              <| vw_effq := [] |> <| vw_hook_cursor := 0 |>)) -∗
+    render_ctx p π' -∗
+    ▷ (render_ctx p (π' <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> <| vw_hook_cursor := 0 |>) -∗
        WP ((FExpr PSucc σb body, KRetry σb body :: ks)
            : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s, KRetry σb body :: ks) : expr (reactLang δ)) {{ Φ }}.
@@ -316,8 +308,8 @@ Section step_rules.
       runs. *)
   Example wp_usestate_demo (p : path) (π : domains.view) (v : domains.val)
       (ks : list machine.frame) Φ :
-    reg_token (Some (p, π)) -∗
-    (reg_token (Some (p, π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |> <| vw_hook_cursor := S (vw_hook_cursor π) |>)) -∗
+    render_ctx p π -∗
+    (render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |> <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
        WP ((FVal (VList [v]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit [("x", v)]
            (EUseState "s" "setS" (EVar "x") (EView [EVar "s"])), ks)

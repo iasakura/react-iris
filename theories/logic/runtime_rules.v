@@ -79,8 +79,8 @@ Section runtime_rules.
   Lemma wp_mount (s : domains.val) (p : path) (π : domains.view)
       (m : tree_mem) (ks : list machine.frame) Φ :
     m !! p = None →
-    mem_auth_frag m -∗ reg_token (Some (p, π)) -∗
-    ▷ (mem_auth_frag (<[p:=π]> m) -∗ view_ptsto p π -∗ reg_token None -∗
+    mem_auth_frag m -∗ render_ctx p π -∗
+    ▷ (mem_auth_frag (<[p:=π]> m) -∗ view_ptsto p π -∗ render_idle -∗
        WP ((FInit s, KInitChild p :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s, KInitBody p :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -146,8 +146,8 @@ Section runtime_rules.
       child against the new view spec. *)
   Lemma wp_recon_writeback (s' : domains.val) (child : tree) (p : path)
       (π0 π' : domains.view) (m : tree_mem) (ks : list machine.frame) Φ :
-    mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
-    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π0 -∗ render_ctx p π' -∗
+    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
        WP ((FRecon child s', KReconChild p :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s', KReconBody p child :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -209,8 +209,8 @@ Section runtime_rules.
   Lemma wp_check_writeback_eff (s' : domains.val) (child : tree) (p : path)
       (π0 π' : domains.view) (m : tree_mem) (ks : list machine.frame) Φ :
     dec_effect (vw_dec π') = true →
-    mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
-    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π0 -∗ render_ctx p π' -∗
+    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
        WP ((FRecon child s', KCheckRecon p :: ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s', KCheckBody p child :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -225,8 +225,8 @@ Section runtime_rules.
       (p : path) (π0 π' : domains.view) (m : tree_mem)
       (ks : list machine.frame) Φ :
     dec_effect (vw_dec π') = false →
-    mem_auth_frag m -∗ view_ptsto p π0 -∗ reg_token (Some (p, π')) -∗
-    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π0 -∗ render_ctx p π' -∗
+    ▷ (mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
        WP ((FCheck child, ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal s', KCheckBody p child :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -318,11 +318,11 @@ Section runtime_rules.
   Example wp_mount_demo (C : comp_name) (v : domains.val) (m : tree_mem)
       (ks : list machine.frame) Φ :
     δ !! C = Some (CompDef "x" (EConst CUnit)) →
-    mem_auth_frag m -∗ reg_token None -∗
+    mem_auth_frag m -∗ render_idle -∗
     (∀ p, mem_auth_frag
              (<[p := MkView C v (Decisions false true) ∅ [] (TConst CUnit) 0]> m) -∗
           view_ptsto p (MkView C v (Decisions false true) ∅ [] (TConst CUnit) 0) -∗
-          reg_token None -∗
+          render_idle -∗
           WP ((FTree (TPath p), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FInit (VCompSpec C v), ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.

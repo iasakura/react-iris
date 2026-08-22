@@ -173,10 +173,10 @@ Section parent_child.
       (m : tree_mem) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     m !! p = Some π →
     vw_sttst π !! 0 = Some ent →
-    mem_auth_frag m -∗ view_ptsto p π -∗ reg_token None -∗
+    mem_auth_frag m -∗ view_ptsto p π -∗ render_idle -∗
     (let π' := π <| vw_dec ::= dec_add_check |>
                  <| vw_sttst ::= insert 0 (ent <| st_queue ::= (λ q, q ++ [to_false p]) |>) |> in
-     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ reg_token None -∗
+     mem_auth_frag (<[p:=π']> m) -∗ view_ptsto p π' -∗ render_idle -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PNormal [("set", VSetter 0 p)] ("set" (λ: "_", false))%r, ks)
         : expr (reactLang δ)) {{ Φ }}.
@@ -255,9 +255,9 @@ Section parent_child.
     iApply (wp_commit_effects _
               (λ i, match i with
                     | 0%nat => mem_auth_frag (<[1:=Πc2]> (<[0:=Πp2]> ∅)) ∗
-                               view_ptsto 0 Πp2 ∗ reg_token None
+                               view_ptsto 0 Πp2 ∗ render_idle
                     | _ => mem_auth_frag (<[1:=Πc2]> (<[0:=Πp3]> ∅)) ∗
-                           view_ptsto 0 Πp3 ∗ reg_token None
+                           view_ptsto 0 Πp3 ∗ render_idle
                     end)%I
               with "[] [Hm Hp Hr]"); [by left| |by iFrame|].
     { iSplitL; last done. rewrite /eff. iIntros (ks' Φ') "(Hm & Hp & Hr) Hk'".
