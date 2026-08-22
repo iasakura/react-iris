@@ -550,15 +550,14 @@ Explicit items, in the order we intend to take them:
    (`root_loop` / single-component rather than "leaf"). Acceptance: the
    Parent/Child example derived through the generic loop, with no
    hand-proved run lemmas.
-2. **Fuel-free display in theorem statements.** `display_t 1000 …` leaks a
-   magic number into `rs_disp`, `root_adequacy`, and the example
-   theorems. Redefine display like `handlers_of`: structural recursion on
-   the tree, fuel only for path hops, bounded by `S (map_size m)`
-   (sufficient on acyclic memories). Then the statements read
+2. ~~**Fuel-free display in theorem statements.**~~ *Done.* Display is
+   split like `handlers_of`: `display_tree` recurses structurally on the
+   tree and defers paths to a callback, `display_h` counts only path
+   hops, and `display m t` fixes the budget at `S (map_size m)`
+   (sufficient on acyclic memories). The statements read
    `display m (TPath 0) = Ok d`, and the `val_size ≤ 999` side condition
-   of `leaf_obligations` disappears (the path-free lemma becomes the
-   same tree induction as `handlers_h_free`). `FUEL` / `MFUEL` stay in
-   the tests and in `wp_mrun_ok` only, where they are computational.
+   of `leaf_obligations` is gone. `FUEL` / `MFUEL` stay in the tests and
+   in `wp_mrun_ok` only, where they are computational.
 3. **WP-rule file reorganization** per `docs/wp-rules.md` (footprint
    rules into `lifting.v`; `step_rules.v` ∪ `runtime_rules.v` →
    `redex_rules.v`; `runtime.v` → `lifecycle.v`). Pure refactoring,
