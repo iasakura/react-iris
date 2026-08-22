@@ -3,7 +3,7 @@
 
     ** What is verified
 
-    Counter without the printing updater ([pure_counter_body], programs.v):
+    Counter without the printing updater ([pure_counter_body]):
 <<
 let Counter x =
   let (s, setS) = useState x in
@@ -26,13 +26,24 @@ let Counter x =
     established — [upd_pure] is where the user obligation bites. *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains notation interp machine.
-From react_iris.examples Require Import programs.
 From react_iris.logic Require Import inst lifting step_rules runtime_rules hooks runtime slots.
 From iris.base_logic.lib Require Import ghost_map ghost_var.
 From iris.program_logic Require Import weakestpre.
 From iris.proofmode Require Import proofmode.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
+
+(** ** A pure Counter — Counter without the printing updater, so that the
+    slot layer applies
+
+<<
+let Counter x =
+  let (s, setS) = useState x in
+  [s, button (fun _ -> setS (fun s -> s + 1); setS (fun s -> s + 1))];;
+>> *)
+Definition pure_counter_body : syntax.expr :=
+  (let: "s", "setS" := useState "x" in
+   ⟪ "s"; λ: "_", "setS" (λ: "s", "s" + 1) ;; "setS" (λ: "s", "s" + 1) ⟫)%r.
 
 Section pure_counter.
   Context `{!invGS Σ, !reactGS Σ}.
@@ -98,7 +109,7 @@ Section pure_counter.
   Lemma body_succ_spec (γ : gname) (a : domains.val) (nx : Z) (p : path)
       (π : domains.view) (ent : st_entry) (ks : list machine.frame)
       (Φ : mval → iProp Σ) :
-    vw_cur π = 0 →
+    vw_cur_hook_label π = 0 →
     vw_sttst π !! 0 = Some ent →
     latest_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗
     (∀ n, ⌜a = cint n⌝ -∗

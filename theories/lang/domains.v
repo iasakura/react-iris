@@ -108,11 +108,13 @@ Record view := MkView {
   vw_sttst : stt_store;
   vw_effq : list val;
   vw_child : tree;
-  (** Hook cursor (design decision D2, cursor semantics): during a
-      render, the index of the next hook call; slots are keyed by call
-      order, as in React. Reset to 0 on body entry; the value persisted
-      with a mounted view is the number of hooks of its last render. *)
-  vw_cur : nat;
+  (** The hook cursor (design decision D2, cursor semantics): the slot
+      label the next hook call of this render will take. Slots are keyed
+      by call order, as in React, so a hook's label is not written in the
+      program — it is this field at the moment the hook runs. Reset to 0
+      on body entry; the value persisted with a mounted view is the
+      number of hooks of its last render. *)
+  vw_cur_hook_label : label;
 }.
 
 Definition tree_mem : Type := gmap path view.
@@ -161,7 +163,7 @@ Global Instance st_entry_settable : Settable st_entry :=
 Global Instance decisions_settable : Settable decisions :=
   settable! Decisions <dec_check; dec_effect>.
 Global Instance view_settable : Settable view :=
-  settable! MkView <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child; vw_cur>.
+  settable! MkView <vw_comp; vw_arg; vw_dec; vw_sttst; vw_effq; vw_child; vw_cur_hook_label>.
 Global Instance config_settable : Settable config :=
   settable! Config <c_tree; c_mem; c_out; c_mode>.
 

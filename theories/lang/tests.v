@@ -293,8 +293,8 @@ Example cond_click_stuck :
     = Stuck "Rules of Hooks: more hooks than in the previous render".
 Proof. vm_compute. reflexivity. Qed.
 
-(** *** Two hooks — slots by call order (0 then 1); the labels (7, 3) are
-    deliberately not in order and are ignored
+(** *** Two hooks — slots by call order: the first call takes slot 0, the
+    second slot 1
 
 <<
 let Two x =
@@ -304,14 +304,14 @@ let Two x =
 Two ()
 >> *)
 Definition two_body : expr :=
-  (EUseState 7 "a" "setA" 1
-    (EUseState 3 "b" "setB" 2
-      ⟪ "a"; "b"; λ: "_", "setB" (λ: "v", "v" + 10) ⟫))%r.
+  (let: "a", "setA" := useState 1 in
+   let: "b", "setB" := useState 2 in
+   ⟪ "a"; "b"; λ: "_", "setB" (λ: "v", "v" + 10) ⟫)%r.
 
 Definition two_prog : prog :=
   Prog [("Two", CompDef "x" two_body)] (Comp "Two" #())%r.
 
-(** The second setter updates slot 1; the labels are ignored. *)
+(** The second setter updates slot 1. *)
 Example two_slots :
   run_state two_prog [0%nat] 0 0 = Ok (Some (vint 1)) ∧
   run_state two_prog [0%nat] 0 1 = Ok (Some (vint 12)).

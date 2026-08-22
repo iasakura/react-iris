@@ -176,7 +176,15 @@ Section leaf_root.
   (** The view with slot table [ld_st a] and child [t] (no decisions, no
       effects, all slots visited). *)
   Definition bview (a : rs_A S) (t : tree) : domains.view :=
-    MkView (ld_C L) (ld_v L) dec_empty (ld_st L a) [] t (map_size (ld_st L a)).
+    {|
+       vw_comp := ld_C L;
+       vw_arg := ld_v L;
+       vw_dec := dec_empty;
+       vw_sttst := ld_st L a;
+       vw_effq := [];
+       vw_child := t;
+       vw_cur_hook_label := map_size (ld_st L a)
+     |}.
 
   (** The quiescent view at [a]. *)
   Definition qview (a : rs_A S) : domains.view := bview a (tree_of (ld_spec L a)).
@@ -187,7 +195,15 @@ Section leaf_root.
 
   (** The initial render context of the root. *)
   Definition init_ctx : domains.view :=
-    enter_view (MkView (ld_C L) (ld_v L) dec_empty ∅ [] (TConst CUnit) 0).
+    enter_view ({|
+       vw_comp := ld_C L;
+       vw_arg := ld_v L;
+       vw_dec := dec_empty;
+       vw_sttst := ∅;
+       vw_effq := [];
+       vw_child := TConst CUnit;
+       vw_cur_hook_label := 0
+     |}).
 
   Definition leaf_obligations : iProp Σ :=
     (* the component and its rendered specs *)

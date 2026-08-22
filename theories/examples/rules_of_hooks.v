@@ -1,6 +1,6 @@
 (** * Rules of Hooks: a violator has no weakest-precondition proof.
 
-    The program ([programs.v]):
+    The program:
 
 <<
 let Cond x =
@@ -26,10 +26,29 @@ Cond ()
     unverifiable, and one that respects them (all other examples,
     including a custom hook, [custom_hook.v]) is verifiable. *)
 From react_iris Require Import prelude.
-From react_iris.lang Require Import syntax domains interp machine.
-From react_iris.examples Require Import programs.
+From react_iris.lang Require Import syntax domains notation interp machine.
 From react_iris.logic Require Import inst stuck.
 From iris.program_logic Require Import adequacy.
+
+(** ** The program: Cond (§1) — a hook under a conditional: a Rules-of-Hooks violation
+
+<<
+let Cond x =
+  let (b, setB) = useState false in
+  if b then (let (s, setS) = useState 0 in s)
+  else button (fun _ -> setB (fun b -> not b));;
+Cond ()
+>>
+
+    The first render calls one hook; after the click the re-render calls
+    a second one, for which no slot exists — the machine is stuck. *)
+Definition cond_body : syntax.expr :=
+  (let: "b", "setB" := useState false in
+   if: "b" then (let: "s", "setS" := useState 0 in "s")
+   else λ: "_", "setB" (λ: "b", ¬ "b"))%r.
+
+Definition cond_prog : prog :=
+  Prog [("Cond", CompDef "x" cond_body)] (Comp "Cond" #())%r.
 
 Theorem cond_not_adequate (φ : mval → lstate → Prop) :
   ¬ adequate NotStuck
