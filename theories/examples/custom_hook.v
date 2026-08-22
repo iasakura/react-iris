@@ -27,7 +27,7 @@ let Comp x =
     - [comp_init], [comp_succ]: the component body's specifications,
       proved *from the hook's specifications alone*, without unfolding
       the hook's body — the module discipline of design.md §5.3 (the slot
-      count is exposed as [S (vw_cur_hook_label π)]; hiding it behind an abstract
+      count is exposed as [S (vw_hook_cursor π)]; hiding it behind an abstract
       hook context is future work). *)
 From react_iris Require Import prelude.
 From react_iris.lang Require Import syntax domains notation interp machine.
@@ -89,9 +89,9 @@ Section custom_hook.
   Lemma useCounter_init (v : domains.val) (σ : env) (p : path)
       (π : domains.view) (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx p π -∗
-    (render_ctx p (π <| vw_sttst ::= insert (vw_cur_hook_label π) (StEntry v []) |>
-                     <| vw_cur_hook_label := S (vw_cur_hook_label π) |>) -∗
-     WP ((FVal (counter_api p (vw_cur_hook_label π) v (env_insert "init" v σ)), ks)
+    (render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |>
+                     <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
+     WP ((FVal (counter_api p (vw_hook_cursor π) v (env_insert "init" v σ)), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit (env_insert "init" v σ) useCounter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
@@ -110,12 +110,12 @@ Section custom_hook.
       (p : path) (π : domains.view) (v0 : domains.val)
       (q : list domains.val) (fs : list (domains.val → domains.val))
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_sttst π !! vw_cur_hook_label π = Some (StEntry v0 q) →
+    vw_sttst π !! vw_hook_cursor π = Some (StEntry v0 q) →
     D v0 →
     queue_pure δ D q fs -∗
     render_ctx p π -∗
-    (render_ctx p (commit_slot π (vw_cur_hook_label π) v0 (fold_upd fs v0)) -∗
-     WP ((FVal (counter_api p (vw_cur_hook_label π) (fold_upd fs v0) (env_insert "init" v σ)), ks)
+    (render_ctx p (commit_slot π (vw_hook_cursor π) v0 (fold_upd fs v0)) -∗
+     WP ((FVal (counter_api p (vw_hook_cursor π) (fold_upd fs v0) (env_insert "init" v σ)), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc (env_insert "init" v σ) useCounter_body, ks)
         : expr (reactLang δ)) {{ Φ }}.
@@ -128,20 +128,20 @@ Section custom_hook.
 
   (** ** The component, from the hook's specifications only *)
 
-  (** Init at argument [v]: the hook takes slot [vw_cur_hook_label π] (0 on a fresh
+  (** Init at argument [v]: the hook takes slot [vw_hook_cursor π] (0 on a fresh
       view), the component's state the next one; the view spec exposes
       the count, the component state, the increment handler, and the
       component's own handler. *)
   Lemma comp_init (v : domains.val) (p : path) (π : domains.view)
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
     render_ctx p π -∗
-    (let l := vw_cur_hook_label π in
+    (let l := vw_hook_cursor π in
      let σr := env_insert "r" (counter_api p l v (env_insert "init" v [("x", v)]))
                  (env_insert "useCounter" (VClos "init" useCounter_body [("x", v)])
                     [("x", v)]) in
-     render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |> <| vw_cur_hook_label := S l |>
+     render_ctx p (π <| vw_sttst ::= insert l (StEntry v []) |> <| vw_hook_cursor := S l |>
                      <| vw_sttst ::= insert (S l) (StEntry (cint 0) []) |>
-                     <| vw_cur_hook_label := S (S l) |>) -∗
+                     <| vw_hook_cursor := S (S l) |>) -∗
      WP ((FVal (VList [v; cint 0;
                        VClos "_" ("setC" (λ: "v", "v" + 1))%r
                          (env_insert "sel" (VConst (CBool false))

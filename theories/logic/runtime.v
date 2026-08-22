@@ -66,7 +66,7 @@ Section runtime.
       [π'] — no Check decision, and as many hooks executed as there are
       slots (Rules of Hooks, cursor semantics) — and [Ψ π' s] holds. *)
   Definition settled (π : domains.view) : Prop :=
-    dec_check (vw_dec π) = false ∧ vw_cur_hook_label π = map_size (vw_sttst π).
+    dec_check (vw_dec π) = false ∧ vw_hook_cursor π = map_size (vw_sttst π).
 
   Definition body_spec (φ : phase) (p : path) (π0 : domains.view) (σ : env)
       (body : syntax.expr) (Ψ : domains.view → domains.val → iProp Σ) : iProp Σ :=
@@ -79,7 +79,7 @@ Section runtime.
 
   (** The register content on body entry (Fig. 6, round entry). *)
   Definition enter_view (π : domains.view) : domains.view :=
-    π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> <| vw_cur_hook_label := 0 |>.
+    π <| vw_dec ::= dec_rm_check |> <| vw_effq := [] |> <| vw_hook_cursor := 0 |>.
 
   (** Running a body through the retry frame, single round. *)
   Lemma wp_body_once (φ : phase) (p : path) (π : domains.view) (σ : env)

@@ -98,7 +98,7 @@ Section selfcounter.
        vw_sttst := <[0 := StEntry (cint k) []]> ∅;
        vw_effq := [eff 0 k];
        vw_child := TList [TConst (CInt k)];
-       vw_cur_hook_label := 1
+       vw_hook_cursor := 1
      |}.
   Local Definition ΠF : domains.view := ΠA 3 <| vw_dec ::= dec_rm_effect |>.
 
@@ -142,9 +142,9 @@ Section selfcounter.
       the effect thunk, prints "Return", returns the view spec [[0]]. *)
   Lemma body_init (p : path) (π : domains.view) (ω : out_buf)
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     render_ctx p π -∗ out_frag ω -∗
-    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (cint 0) []]> |> <| vw_cur_hook_label := 1 |>
+    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (cint 0) []]> |> <| vw_hook_cursor := 1 |>
                      <| vw_effq ::= (λ q, q ++ [eff p 0]) |>) -∗
      out_frag (ω ++ [cint 0; VConst (CString "Return")]) -∗
      WP ((FVal (VList [cint 0]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -172,12 +172,12 @@ Section selfcounter.
       effect thunk at [k+1], prints "Return", returns [[k+1]]. *)
   Lemma body_succ (k j : Z) (p : path) (π : domains.view) (ω : out_buf)
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint k) [inc p j]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (π <| vw_dec ::= dec_add_effect |>
                      <| vw_sttst ::= <[0 := StEntry (cint (k + 1)) []]> |>
-                     <| vw_cur_hook_label := 1 |>
+                     <| vw_hook_cursor := 1 |>
                      <| vw_effq ::= (λ q, q ++ [eff p (k + 1)]) |>) -∗
      out_frag (ω ++ [cint (k + 1); VConst (CString "Return")]) -∗
      WP ((FVal (VList [cint (k + 1)]), ks) : expr (reactLang δ)) {{ Φ }}) -∗
@@ -308,7 +308,7 @@ Section selfcounter.
     wp_pure.
     set (π5 := enter_view ΠC <| vw_dec ::= dec_add_effect |>
                  <| vw_sttst ::= <[0 := StEntry (cint (k + 1)) []]> |>
-                 <| vw_cur_hook_label := 1 |>
+                 <| vw_hook_cursor := 1 |>
                  <| vw_effq ::= (λ q, q ++ [eff 0 (k + 1)]) |>).
     iApply (wp_check_component _ 0 ΠC "x" selfcounter_body _
               (λ π' s, (⌜π' = π5⌝ ∗ ⌜s = VList [cint (k + 1)]⌝ ∗
@@ -398,9 +398,9 @@ Section selfcounter.
        vw_sttst := ∅;
        vw_effq := [];
        vw_child := TConst CUnit;
-       vw_cur_hook_label := 0
+       vw_hook_cursor := 0
      |})
-                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_cur_hook_label := 1 |>
+                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_hook_cursor := 1 |>
                  <| vw_effq ::= (λ q, q ++ [eff (fresh_path ∅) 0]) |>).
     iApply (wp_init_component _ _ _ _ _ _
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = VList [cint 0]⌝ ∗ out_frag ω_mount)%I)

@@ -124,7 +124,7 @@ Section counter_modular.
               TClos "_" hbody
                 (env_insert "setS" (VSetter 0 0)
                    (env_insert "s" (cint n) [("x", cint 0)]))];
-       vw_cur_hook_label := 1
+       vw_hook_cursor := 1
      |}.
 
   (** The invariant across events: [Π n] in memory, output [ω]. *)
@@ -147,10 +147,10 @@ Section counter_modular.
       prints "Return", and returns the view spec [[n; handler]]. *)
   Lemma counter_body_init (n : Z) (p : path) (π : domains.view)
       (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (π <| vw_sttst ::= insert 0 (StEntry (VConst (CInt n)) []) |>
-                     <| vw_cur_hook_label := 1 |>) -∗
+                     <| vw_hook_cursor := 1 |>) -∗
      out_frag (ω ++ [VConst (CString "Counter"); VConst (CString "Return")]) -∗
      WP ((FVal (VList [VConst (CInt n); counter_handler p n n]), ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
@@ -181,7 +181,7 @@ Section counter_modular.
   Lemma counter_body_succ (nx n : Z) (q : list domains.val)
       (fs : list (domains.val → domains.val)) (p : path) (π : domains.view)
       (ω : out_buf) (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (VConst (CInt n)) q) →
     queue_pure δ is_int q fs -∗
     render_ctx p π -∗ out_frag ω -∗
@@ -258,7 +258,7 @@ Section counter_modular.
   Lemma counter_body_succ_click (narg n ns nx : Z) (p : path)
       (π : domains.view) (ω : out_buf) (ks : list machine.frame)
       (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (cint n) [cl1 p ns nx; cl2 p ns nx]) →
     render_ctx p π -∗ out_frag ω -∗
     (render_ctx p (commit_slot π 0 (cint n) (cint (n + 1 + 1))) -∗
@@ -314,9 +314,9 @@ Section counter_modular.
        vw_sttst := ∅;
        vw_effq := [];
        vw_child := TConst CUnit;
-       vw_cur_hook_label := 0
+       vw_hook_cursor := 0
      |})
-                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_cur_hook_label := 1 |>).
+                 <| vw_sttst ::= <[0:=StEntry (cint 0) []]> |> <| vw_hook_cursor := 1 |>).
     set (s1 := VList [cint 0; counter_handler (fresh_path ∅) 0 0]).
     iApply (wp_init_component _ _ _ _ _ _
               (λ π' s, (⌜π' = π1⌝ ∗ ⌜s = s1⌝ ∗ out_frag ω_mount)%I) with "[Ho] Hm Hr").
@@ -380,7 +380,7 @@ Section counter_modular.
     wp_pure.
     set (π5 := enter_view π4 <| vw_dec ::= dec_add_effect |>
                  <| vw_sttst ::= <[0:=StEntry (cint (n + 1 + 1)) []]> |>
-                 <| vw_cur_hook_label := 1 |>).
+                 <| vw_hook_cursor := 1 |>).
     set (s5 := VList [cint (n + 1 + 1); counter_handler 0 (n + 1 + 1) 0]).
     iApply (wp_check_component _ 0 π4 "x" counter_body _
               (λ π' s, (⌜π' = π5⌝ ∗ ⌜s = s5⌝ ∗ out_frag (ω ++ ω_click))%I)
@@ -520,7 +520,7 @@ Section counter_modular.
        vw_sttst := <[0 := StEntry (VConst (CInt a)) [cl1 0 a 0; cl2 0 a 0]]> ∅;
        vw_effq := [];
        vw_child := tree_of (VList [VConst (CInt a); counter_handler 0 a 0]);
-       vw_cur_hook_label := 1
+       vw_hook_cursor := 1
      |}.
 
   Definition counter_leaf : leaf_data counter_lts :=
@@ -552,7 +552,7 @@ Section counter_modular.
       iIntros "Hr Ho".
       assert (init_ctx counter_lts counter_leaf
                 <| vw_sttst ::= insert 0 (StEntry (VConst (CInt 0)) []) |>
-                <| vw_cur_hook_label := 1 |>
+                <| vw_hook_cursor := 1 |>
               = bview counter_lts counter_leaf 0%Z (TConst CUnit)) as Hq
         by reflexivity.
       iEval (rewrite Hq) in "Hr".

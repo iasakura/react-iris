@@ -109,7 +109,7 @@ Section pure_counter.
   Lemma body_succ_spec (γ : gname) (a : domains.val) (nx : Z) (p : path)
       (π : domains.view) (ent : st_entry) (ks : list machine.frame)
       (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some ent →
     latest_state γ a -∗ slot_res δ is_int γ ent -∗ render_ctx p π -∗
     (∀ n, ⌜a = cint n⌝ -∗

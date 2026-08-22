@@ -183,7 +183,7 @@ Section leaf_root.
        vw_sttst := ld_st L a;
        vw_effq := [];
        vw_child := t;
-       vw_cur_hook_label := map_size (ld_st L a)
+       vw_hook_cursor := map_size (ld_st L a)
      |}.
 
   (** The quiescent view at [a]. *)
@@ -202,7 +202,7 @@ Section leaf_root.
        vw_sttst := ∅;
        vw_effq := [];
        vw_child := TConst CUnit;
-       vw_cur_hook_label := 0
+       vw_hook_cursor := 0
      |}).
 
   Definition leaf_obligations : iProp Σ :=

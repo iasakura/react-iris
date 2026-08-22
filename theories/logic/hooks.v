@@ -106,7 +106,7 @@ Section hooks.
       : domains.view :=
     π <| vw_dec := (if val_eqb vn v0 then vw_dec π else dec_add_effect (vw_dec π)) |>
       <| vw_sttst ::= insert l (StEntry vn []) |>
-      <| vw_cur_hook_label := S l |>.
+      <| vw_hook_cursor := S l |>.
 
   (** Folding a pure queue through the [KSttFold] frame. *)
   Lemma wp_sttfold_pure (D : domains.val → Prop) (v : domains.val) (σb : env)
@@ -146,9 +146,9 @@ Section hooks.
       (e2 : syntax.expr) (p : path) (π : domains.view)
       (ks : list machine.frame) Φ :
     render_ctx p π -∗
-    ▷ (render_ctx p (π <| vw_sttst ::= insert (vw_cur_hook_label π) (StEntry v []) |>
-                       <| vw_cur_hook_label := S (vw_cur_hook_label π) |>) -∗
-       WP ((FExpr PInit (env_insert xset (VSetter (vw_cur_hook_label π) p) (env_insert x v σb)) e2,
+    ▷ (render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |>
+                       <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
+       WP ((FExpr PInit (env_insert xset (VSetter (vw_hook_cursor π) p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal v, KUseState σb x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof. iApply wp_usestate_bind. Qed.
@@ -160,12 +160,12 @@ Section hooks.
       (e1 e2 : syntax.expr) (σb : env) (p : path)
       (π : domains.view) (v0 : domains.val) (q : list domains.val)
       (fs : list (domains.val → domains.val)) (ks : list machine.frame) Φ :
-    vw_sttst π !! vw_cur_hook_label π = Some (StEntry v0 q) →
+    vw_sttst π !! vw_hook_cursor π = Some (StEntry v0 q) →
     D v0 →
     queue_pure D q fs -∗
     render_ctx p π -∗
-    (render_ctx p (commit_slot π (vw_cur_hook_label π) v0 (fold_upd fs v0)) -∗
-     WP ((FExpr PSucc (env_insert xset (VSetter (vw_cur_hook_label π) p)
+    (render_ctx p (commit_slot π (vw_hook_cursor π) v0 (fold_upd fs v0)) -∗
+     WP ((FExpr PSucc (env_insert xset (VSetter (vw_hook_cursor π) p)
                         (env_insert x (fold_upd fs v0) σb)) e2, ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState x xset e1 e2), ks)

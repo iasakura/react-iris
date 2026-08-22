@@ -128,12 +128,12 @@ Section slots.
       (a : domains.val) (x xset : var) (e1 e2 : syntax.expr)
       (σb : env) (p : path) (π : domains.view) (ent : st_entry)
       (ks : list machine.frame) Φ :
-    vw_sttst π !! vw_cur_hook_label π = Some ent →
+    vw_sttst π !! vw_hook_cursor π = Some ent →
     latest_state γ a -∗ slot_res D γ ent -∗
     render_ctx p π -∗
     (latest_state γ a -∗ slot_res D γ (StEntry a []) -∗
-     render_ctx p (commit_slot π (vw_cur_hook_label π) (st_val ent) a) -∗
-     WP ((FExpr PSucc (env_insert xset (VSetter (vw_cur_hook_label π) p) (env_insert x a σb)) e2, ks)
+     render_ctx p (commit_slot π (vw_hook_cursor π) (st_val ent) a) -∗
+     WP ((FExpr PSucc (env_insert xset (VSetter (vw_hook_cursor π) p) (env_insert x a σb)) e2, ks)
          : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc σb (EUseState x xset e1 e2), ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -156,9 +156,9 @@ Section slots.
     D v →
     render_ctx p π -∗
     ▷ (∀ γ, latest_state γ v -∗ slot_res D γ (StEntry v []) -∗
-       render_ctx p (π <| vw_sttst ::= insert (vw_cur_hook_label π) (StEntry v []) |>
-                       <| vw_cur_hook_label := S (vw_cur_hook_label π) |>) -∗
-       WP ((FExpr PInit (env_insert xset (VSetter (vw_cur_hook_label π) p) (env_insert x v σb)) e2,
+       render_ctx p (π <| vw_sttst ::= insert (vw_hook_cursor π) (StEntry v []) |>
+                       <| vw_hook_cursor := S (vw_hook_cursor π) |>) -∗
+       WP ((FExpr PInit (env_insert xset (VSetter (vw_hook_cursor π) p) (env_insert x v σb)) e2,
             ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FVal v, KUseState σb x xset e2 :: ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.

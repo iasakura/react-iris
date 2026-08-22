@@ -77,9 +77,9 @@ Section parent_child.
        vw_sttst := ∅;
        vw_effq := [];
        vw_child := TConst CUnit;
-       vw_cur_hook_label := 0
+       vw_hook_cursor := 0
      |})
-      <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |> <| vw_cur_hook_label := 1 |>.
+      <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |> <| vw_hook_cursor := 1 |>.
   Local Definition Πc1 : domains.view :=
     enter_view ({|
        vw_comp := "EffChild";
@@ -88,7 +88,7 @@ Section parent_child.
        vw_sttst := ∅;
        vw_effq := [];
        vw_child := TConst CUnit;
-       vw_cur_hook_label := 0
+       vw_hook_cursor := 0
      |})
       <| vw_effq ::= (λ q, q ++ [eff 0]) |>.
   Local Definition Πc2 : domains.view :=
@@ -109,9 +109,9 @@ Section parent_child.
       ⟨Child, setB⟩. *)
   Lemma parent_init (p : path) (π : domains.view)
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     render_ctx p π -∗
-    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |> <| vw_cur_hook_label := 1 |>) -∗
+    (render_ctx p (π <| vw_sttst ::= <[0 := StEntry (vbool true) []]> |> <| vw_hook_cursor := 1 |>) -∗
      WP ((FVal (VCompSpec "EffChild" (VSetter 0 p)), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PInit [("x", VConst CUnit)] eff_parent_body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -128,12 +128,12 @@ Section parent_child.
       (Effect), renders (). *)
   Lemma parent_succ (p : path) (π : domains.view)
       (ks : list machine.frame) (Φ : mval → iProp Σ) :
-    vw_cur_hook_label π = 0 →
+    vw_hook_cursor π = 0 →
     vw_sttst π !! 0 = Some (StEntry (vbool true) [to_false p]) →
     render_ctx p π -∗
     (render_ctx p (π <| vw_dec ::= dec_add_effect |>
                      <| vw_sttst ::= <[0 := StEntry (vbool false) []]> |>
-                     <| vw_cur_hook_label := 1 |>) -∗
+                     <| vw_hook_cursor := 1 |>) -∗
      WP ((FVal (VConst CUnit), ks) : expr (reactLang δ)) {{ Φ }}) -∗
     WP ((FExpr PSucc [("x", VConst CUnit)] eff_parent_body, ks) : expr (reactLang δ)) {{ Φ }}.
   Proof.
@@ -281,7 +281,7 @@ Section parent_child.
     iEval (rewrite insert_insert_eq) in "Hm".
     set (Πp5 := enter_view Πp4 <| vw_dec ::= dec_add_effect |>
                   <| vw_sttst ::= <[0 := StEntry (vbool false) []]> |>
-                  <| vw_cur_hook_label := 1 |>).
+                  <| vw_hook_cursor := 1 |>).
     iApply (wp_check_component _ 0 Πp4 "x" eff_parent_body _
               (λ π' s, (⌜π' = Πp5⌝ ∗ ⌜s = VConst CUnit⌝)%I) with "[] Hm Hp Hr").
     { by rewrite lookup_insert_ne // lookup_insert_eq. }
