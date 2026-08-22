@@ -67,7 +67,6 @@ Section selfcounter.
   Context `{!invGS Σ, !reactGS Σ}.
 
   Local Definition δ : def_table := prog_def_table selfcounter_prog.
-  Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
   (** ** Program-side data: what the run creates from [selfcounter_body]
 

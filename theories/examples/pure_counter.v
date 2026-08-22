@@ -49,7 +49,6 @@ Section pure_counter.
   Context `{!invGS Σ, !reactGS Σ}.
   Context (δ : def_table).
 
-  Local Notation "'cint' n" := (VConst (CInt n)) (at level 10).
 
   (** ** Program-side data: what the run creates from [pure_counter_body]
 
