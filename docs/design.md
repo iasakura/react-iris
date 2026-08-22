@@ -185,13 +185,15 @@ conformance check.
   static versions, plus differential tests against react-trace.
 
 **Status.** Phase 3 is implemented: the view carries a hook cursor
-(`vw_hook_cursor`), reset on body entry; `useState` binds the slot at the cursor
-(the syntactic label is ignored) and advances it; on re-render a missing
-slot is stuck ("more hooks than in the previous render"), and settling
-with cursor ≠ slot count is stuck ("fewer hooks"). All paper examples and
-the machine/interpreter agreement are unchanged (labels 0, 1, … in call
-order coincide with cursors); new tests cover two hooks by call order and
-a custom hook (a function containing a hook). `logic/stuck.v` certifies
+(`vw_hook_cursor`), reset on body entry; `useState` binds the slot at the
+cursor and advances it; on re-render a missing slot is stuck ("more hooks
+than in the previous render"), and settling with cursor ≠ slot count is
+stuck ("fewer hooks"). Hooks therefore carry **no syntactic label** at
+all — `EUseState x xset e1 e2` — since the label is the cursor at the
+call; the paper's static labels 0, 1, … in call order coincide with the
+cursors, so all paper examples and the machine/interpreter agreement are
+unchanged. New tests cover two hooks by call order and a custom hook (a
+function containing a hook). `logic/stuck.v` certifies
 non-safety by computation (`stuck_within_not_adequate`), and
 `examples/rules_of_hooks.v` proves `cond_not_adequate`: the paper's
 `Cond` admits no adequate postcondition, hence no WP proof — the concrete
