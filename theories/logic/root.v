@@ -83,11 +83,13 @@ Section free_trees.
     tree_size (tree_of s) = val_size s.
   Proof. apply (tree_size_tree_of_gen (val_size s)); lia. Qed.
 
-  Lemma display_t_free (n : nat) :
-    ∀ m t, tree_size t ≤ n → path_free t →
-    display_t n m t = Ok (display_free t).
+  (** A path-free tree never consults the path callback, so its display
+      is [display_free] whatever the callback is. *)
+  Lemma display_tree_free_gen (n : nat) :
+    ∀ (f : path → res dtree) (t : tree), tree_size t ≤ n → path_free t →
+    display_tree f t = Ok (display_free t).
   Proof.
-    induction n as [|n IH]; intros m t Hsz Hpf.
+    induction n as [|n IH]; intros f t Hsz Hpf.
     { destruct t; simpl in Hsz; lia. }
     destruct t as [k|x e σ|ts|p]; simpl in *; try done.
     assert (∀ ts', Forall id (map path_free ts') →
@@ -95,13 +97,17 @@ Section free_trees.
                    (fix go (ts : list tree) : res (list dtree) :=
                       match ts with
                       | [] => mret []
-                      | t :: ts' => d ← display_t n m t; ds ← go ts'; mret (d :: ds)
+                      | t1 :: ts'' => d ← display_tree f t1; ds ← go ts''; mret (d :: ds)
                       end) ts' = Ok (map display_free ts')) as Hgo.
     { intros ts'. induction ts' as [|t ts' IHl]; intros Hpf' Hsz'; first done.
       inversion Hpf' as [|?? Hpt Hpts]; subst. simpl in Hsz'.
       rewrite IH; [|lia|done]. rewrite IHl; [|done|lia]. done. }
     rewrite Hgo; [done|done|lia].
   Qed.
+
+  Lemma display_tree_free (f : path → res dtree) (t : tree) :
+    path_free t → display_tree f t = Ok (display_free t).
+  Proof. apply (display_tree_free_gen (tree_size t)); lia. Qed.
 
   Lemma handlers_h_free_gen (n : nat) :
     ∀ h m t, tree_size t ≤ n → path_free t →
@@ -132,22 +138,14 @@ Section free_trees.
     simpl. rewrite Hp. by apply handlers_h_free.
   Qed.
 
-  (** One fuel step on a path (stated to avoid [simpl] on the unary
-      fuel numeral). *)
-  Lemma display_t_path_S (n : nat) (m : tree_mem) (p : path) :
-    display_t (S n) m (TPath p)
-      = match m !! p with
-        | Some π => display_t n m (vw_child π)
-        | None => Stuck "display: dangling path"
-        end.
-  Proof. reflexivity. Qed.
-
   Lemma display_leaf (m : tree_mem) (π : domains.view) :
-    m !! (0:path) = Some π → path_free (vw_child π) → tree_size (vw_child π) ≤ 999 →
-    display_t 1000 m (TPath 0) = Ok (display_free (vw_child π)).
+    m !! (0:path) = Some π → path_free (vw_child π) →
+    display m (TPath 0) = Ok (display_free (vw_child π)).
   Proof.
-    intros Hp Hpf Hsz. change 1000 with (S 999).
-    rewrite display_t_path_S. rewrite Hp. by apply display_t_free.
+    intros Hp Hpf. unfold display.
+    destruct (map_size m) as [|h] eqn:Hsz.
+    { apply map_size_empty_inv in Hsz. by rewrite Hsz in Hp. }
+    simpl. rewrite Hp. by apply display_tree_free.
   Qed.
 End free_trees.
 
@@ -208,7 +206,7 @@ Section leaf_root.
   Definition leaf_obligations : iProp Σ :=
     (* the component and its rendered specs *)
     ⌜δ !! ld_C L = Some (CompDef (ld_x L) (ld_body L))⌝ ∗
-    ⌜∀ a, spec_free (ld_spec L a) ∧ val_size (ld_spec L a) ≤ 999⌝ ∗
+    ⌜∀ a, spec_free (ld_spec L a)⌝ ∗
     ⌜∀ a, rs_disp S a = display_free (tree_of (ld_spec L a))⌝ ∗
     ⌜∀ a i, rs_valid S a i →
             ∃ x e σ, handlers_free (tree_of (ld_spec L a)) !! i = Some (VClos x e σ)⌝ ∗
@@ -290,7 +288,7 @@ Section leaf_root.
     iIntros (s π' _) "Hm Hp Hr (%a & %ω' & %Hinit & -> & -> & Ho)".
     iEval (change (fresh_path ∅) with (0:path)) in "Hm Hp".
     iEval (change (fresh_path ∅) with (0:path)).
-    destruct (Hfree a) as [Hsf Hsz].
+    pose proof (Hfree a) as Hsf.
     pose proof (tree_of_path_free _ Hsf) as Hpf.
     (* the child view spec initializes to the tree it denotes *)
     iApply wp_init_free; first done.
@@ -330,7 +328,7 @@ Section leaf_root.
     iIntros (Hvalid).
     iIntros "(%Hδ & %Hfree & %Hdisp & %Hhs & %Hshape & %Hidle & #Hinit & #Hhandler & #Hsucc)".
     iIntros "(-> & Hm & Hp & Hr & Ho) Hk".
-    destruct (Hfree a) as [Hsf Hsz].
+    pose proof (Hfree a) as Hsf.
     pose proof (tree_of_path_free _ Hsf) as Hpf.
     destruct (Hhs a i Hvalid) as (x & e & σ & Hlookup).
     (* dispatch the handler *)
@@ -346,7 +344,7 @@ Section leaf_root.
     destruct (dec_check (vw_dec πh)) eqn:Hcheck; last first.
     { (* the handler left the view quiescent *)
       destruct (Hidle a i πh Hpost Hcheck) as (a' & Hstep & ->).
-      destruct (Hfree a') as [Hsf' _].
+      pose proof (Hfree a') as Hsf'.
       iApply (wp_check_idle with "Hm"); [by rewrite lookup_insert_eq|done|].
       iNext. iIntros "Hm". rewrite qview_child.
       iApply wp_check_free; first by apply tree_of_path_free.
@@ -371,7 +369,7 @@ Section leaf_root.
       iExists a', eff, ω''. iFrame "Ho". iPureIntro. auto. }
     iIntros (s π' _) "Hm Hp Hr (%a' & %eff & %ω'' & %Hstep & -> & %He' & -> & Ho)".
     iEval (rewrite insert_insert_eq) in "Hm".
-    destruct (Hfree a') as [Hsf' Hsz'].
+    pose proof (Hfree a') as Hsf'.
     pose proof (tree_of_path_free _ Hsf') as Hpf'.
     rewrite Hchild.
     destruct eff.
@@ -440,11 +438,10 @@ Section leaf_root.
       by iApply (leaf_event with "Hob HI Hk").
     - (* display *)
       iIntros "!>" (a m ω) "(-> & Hm & Hp & Hr & Ho)". iFrame. iPureIntro.
-      destruct (Hfree a) as [Hsf Hsz].
+      pose proof (Hfree a) as Hsf.
       rewrite Hdisp -qview_child.
-      apply display_leaf; [by rewrite lookup_insert_eq| |].
-      + rewrite qview_child. by apply tree_of_path_free.
-      + rewrite qview_child tree_size_tree_of. lia.
+      apply display_leaf; first by rewrite lookup_insert_eq.
+      rewrite qview_child. by apply tree_of_path_free.
   Qed.
 
   (** The main expression [Comp C k]: a component applied to a constant. *)

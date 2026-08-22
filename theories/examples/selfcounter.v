@@ -430,7 +430,7 @@ Section selfcounter.
     WP (cfg_expr (machine_init_cfg selfcounter_prog []) : expr (reactLang δ)) {{ w,
       ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗
         ⌜∃ t, w = MIdle t ∧
-              display_t 1000 m t = Ok (DList [DConst (CInt 3)]) ∧ ω = ω_final⌝ }}.
+              display m t = Ok (DList [DConst (CInt 3)]) ∧ ω = ω_final⌝ }}.
   Proof.
     iIntros "Hown".
     iApply (mount with "Hown"). iIntros "HA".
@@ -454,7 +454,7 @@ Corollary selfcounter_adequate :
        : expr (reactLang (prog_def_table selfcounter_prog)))
     (cfg_state (machine_init_cfg selfcounter_prog []))
     (λ w σ, ∃ t, w = MIdle t ∧
-       display_t 1000 (ls_mem σ) t = Ok (DList [DConst (CInt 3)]) ∧
+       display (ls_mem σ) t = Ok (DList [DConst (CInt 3)]) ∧
        ls_out σ =
          [VConst (CInt 0); VConst (CString "Return"); VConst (CString "Effect");
           VConst (CInt 1); VConst (CString "Return"); VConst (CString "Effect");
@@ -463,7 +463,7 @@ Corollary selfcounter_adequate :
 Proof.
   apply (react_adequacy_state reactΣ _ _
            (λ w m ω, ∃ t, w = MIdle t ∧
-              display_t 1000 m t = Ok (DList [DConst (CInt 3)]) ∧
+              display m t = Ok (DList [DConst (CInt 3)]) ∧
               ω = [VConst (CInt 0); VConst (CString "Return"); VConst (CString "Effect");
                    VConst (CInt 1); VConst (CString "Return"); VConst (CString "Effect");
                    VConst (CInt 2); VConst (CString "Return"); VConst (CString "Effect");

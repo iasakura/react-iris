@@ -192,7 +192,7 @@ Section parent_child.
     own_cfg (machine_init_cfg eff_cross_prog []) -∗
     WP (cfg_expr (machine_init_cfg eff_cross_prog []) : expr (reactLang δ)) {{ w,
       ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗
-        ⌜∃ t, w = MIdle t ∧ display_t 1000 m t = Ok (DConst CUnit) ∧ ω = []⌝ }}.
+        ⌜∃ t, w = MIdle t ∧ display m t = Ok (DConst CUnit) ∧ ω = []⌝ }}.
   Proof.
     iIntros "(Hm & _ & Hr & Ho)".
     iEval (rewrite /machine_init_cfg /cfg_expr;
@@ -332,9 +332,9 @@ Corollary parent_child_adequate :
     (cfg_expr (machine_init_cfg eff_cross_prog [])
        : expr (reactLang (prog_def_table eff_cross_prog)))
     (cfg_state (machine_init_cfg eff_cross_prog []))
-    (λ w σ, ∃ t, w = MIdle t ∧ display_t 1000 (ls_mem σ) t = Ok (DConst CUnit) ∧ ls_out σ = []).
+    (λ w σ, ∃ t, w = MIdle t ∧ display (ls_mem σ) t = Ok (DConst CUnit) ∧ ls_out σ = []).
 Proof.
   apply (react_adequacy_state reactΣ _ _
-           (λ w m ω, ∃ t, w = MIdle t ∧ display_t 1000 m t = Ok (DConst CUnit) ∧ ω = [])).
+           (λ w m ω, ∃ t, w = MIdle t ∧ display m t = Ok (DConst CUnit) ∧ ω = [])).
   intros HI HR. by iApply parent_child_wp.
 Qed.
