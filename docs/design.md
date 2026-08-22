@@ -185,7 +185,7 @@ conformance check.
   static versions, plus differential tests against react-trace.
 
 **Status.** Phase 3 is implemented: the view carries a hook cursor
-(`vw_cur`), reset on body entry; `useState` binds the slot at the cursor
+(`vw_hook_cursor`), reset on body entry; `useState` binds the slot at the cursor
 (the syntactic label is ignored) and advances it; on re-render a missing
 slot is stuck ("more hooks than in the previous render"), and settling
 with cursor ≠ slot count is stuck ("fewer hooks"). All paper examples and
