@@ -22,7 +22,7 @@ Local Definition run_state (P : prog) (evs : list nat) (p : path) (l : label)
     : res (option val) :=
   (λ c, state_at c p l) <$> run_prog FUEL P evs.
 Local Definition run_display (P : prog) (evs : list nat) : res dtree :=
-  run_prog FUEL P evs ≫= display_of FUEL.
+  run_prog FUEL P evs ≫= display_of.
 Local Definition run_nviews (P : prog) (evs : list nat) : res nat :=
   (λ c, map_size (c_mem c)) <$> run_prog FUEL P evs.
 

@@ -51,7 +51,7 @@ Section counter.
     own_cfg c0 -∗
     WP (cfg_expr c0 : expr (reactLang δ)) {{ w,
       ∃ t cf, ⌜w = MIdle t⌝ ∗ own_cfg cf ∗
-        ⌜display_t 1000 (mc_mem cf) t
+        ⌜display (mc_mem cf) t
            = Ok (DList [DConst (CInt 0); DHandler])⌝ }}.
   Proof.
     destruct (mrun δ 20000 c0) as [c'|msg|] eqn:HE;
@@ -97,7 +97,7 @@ Section counter_clicks.
     own_cfg c3 -∗
     WP (cfg_expr c3 : expr (reactLang δ)) {{ w,
       ∃ t cf, ⌜w = MIdle t⌝ ∗ own_cfg cf ∗
-        ⌜display_t 1000 (mc_mem cf) t
+        ⌜display (mc_mem cf) t
            = Ok (DList [DConst (CInt 6); DHandler])⌝ }}.
   Proof.
     destruct (mrun δ 20000 c3) as [c'|msg|] eqn:HE;

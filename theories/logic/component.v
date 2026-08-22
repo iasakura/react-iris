@@ -72,7 +72,7 @@ Section component.
     (* display and ownership at quiescence *)
     □ (∀ a m ω, Inv a m ω -∗
        mem_auth_frag m ∗ out_frag ω ∗
-       ⌜display_t 1000 m (TPath 0) = Ok (rs_disp S a)⌝).
+       ⌜display m (TPath 0) = Ok (rs_disp S a)⌝).
 
   Global Instance root_obligations_persistent P S Inv :
     Persistent (root_obligations P S Inv).
@@ -87,7 +87,7 @@ Section component.
     WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ w,
       ∃ m' ω', mem_auth_frag m' ∗ out_frag ω' ∗
         ⌜∃ a', rs_reach S a evs a' ∧ w = MIdle (TPath 0) ∧
-               display_t 1000 m' (TPath 0) = Ok (rs_disp S a')⌝ }}.
+               display m' (TPath 0) = Ok (rs_disp S a')⌝ }}.
   Proof.
     revert a m ω. induction evs as [|i evs IH]; intros a m ω Hadm.
     - iIntros "(_ & _ & #Hdisp) HI".
@@ -116,7 +116,7 @@ Section component.
     WP (cfg_expr (machine_init_cfg P evs) : expr (reactLang δ)) {{ w,
       ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗
         ⌜∃ a0 a', rs_init S a0 ∧ rs_reach S a0 evs a' ∧ w = MIdle (TPath 0) ∧
-                  display_t 1000 m (TPath 0) = Ok (rs_disp S a')⌝ }}.
+                  display m (TPath 0) = Ok (rs_disp S a')⌝ }}.
   Proof.
     iIntros (Hadm) "#Hob Hown".
     iPoseProof "Hob" as "(#Hmount & _ & _)".
@@ -141,12 +141,12 @@ Theorem root_adequacy (Σ : gFunctors) `{!reactGpreS Σ} (P : prog)
     (cfg_expr (machine_init_cfg P evs) : expr (reactLang (prog_def_table P)))
     (cfg_state (machine_init_cfg P evs))
     (λ w σ, ∃ a0 a', rs_init S a0 ∧ rs_reach S a0 evs a' ∧ w = MIdle (TPath 0) ∧
-                     display_t 1000 (ls_mem σ) (TPath 0) = Ok (rs_disp S a')).
+                     display (ls_mem σ) (TPath 0) = Ok (rs_disp S a')).
 Proof.
   intros Hadm Hob.
   apply (react_adequacy_state Σ _ _
            (λ w m ω, ∃ a0 a', rs_init S a0 ∧ rs_reach S a0 evs a' ∧ w = MIdle (TPath 0) ∧
-                              display_t 1000 m (TPath 0) = Ok (rs_disp S a'))).
+                              display m (TPath 0) = Ok (rs_disp S a'))).
   intros HI HR. iIntros "Hown".
   iApply (root_wp with "[] Hown"); first done.
   iApply Hob.

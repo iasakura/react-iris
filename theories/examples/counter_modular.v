@@ -137,7 +137,7 @@ Section counter_modular.
     [VConst (CString "Counter"); VConst (CString "Update"); VConst (CString "Return")].
 
   Lemma display_Π (n : Z) :
-    display_t 1000 (<[0 := Π n]> ∅) (TPath 0)
+    display (<[0 := Π n]> ∅) (TPath 0)
       = Ok (DList [DConst (CInt n); DHandler]).
   Proof. by vm_compute. Qed.
 
@@ -436,7 +436,7 @@ Section counter_modular.
     WP ((FIdle (TPath 0), [KEvents evs]) : expr (reactLang δ)) {{ w,
       ∃ m ω', mem_auth_frag m ∗ out_frag ω' ∗
         ⌜∃ t, w = MIdle t ∧
-              display_t 1000 m t
+              display m t
                 = Ok (DList [DConst (CInt (n + 2 * Z.of_nat (length evs))); DHandler]) ∧
               ω' = ω ++ concat (replicate (length evs) ω_click)⌝ }}.
   Proof.
@@ -464,7 +464,7 @@ Section counter_modular.
     WP (cfg_expr (machine_init_cfg counter_prog evs) : expr (reactLang δ)) {{ w,
       ∃ m ω, mem_auth_frag m ∗ out_frag ω ∗
         ⌜∃ t, w = MIdle t ∧
-              display_t 1000 m t
+              display m t
                 = Ok (DList [DConst (CInt (2 * Z.of_nat (length evs))); DHandler]) ∧
               ω = ω_mount ++ concat (replicate (length evs) ω_click)⌝ }}.
   Proof.
@@ -537,7 +537,7 @@ Section counter_modular.
     rewrite /leaf_obligations.
     iSplit; [iPureIntro; by vm_compute|].
     iSplit.
-    { iPureIntro. intros a. split; [cbn; by repeat constructor|cbn; lia]. }
+    { iPureIntro. intros a. cbn. by repeat constructor. }
     iSplit; [iPureIntro; intros a; reflexivity|].
     iSplit.
     { iPureIntro. intros a i ->. by eexists _, _, _. }
@@ -623,7 +623,7 @@ Corollary counter_root_adequate (evs : list nat) :
     (cfg_state (machine_init_cfg counter_prog evs))
     (λ w σ, ∃ a0 a', rs_init counter_lts a0 ∧ rs_reach counter_lts a0 evs a' ∧
                      w = MIdle (TPath 0) ∧
-                     display_t 1000 (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
+                     display (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
 Proof.
   intros Hall.
   apply (root_adequacy reactΣ counter_prog counter_lts
@@ -644,7 +644,7 @@ Corollary counter_trace_adequate (evs : list nat) :
        : expr (reactLang (prog_def_table counter_prog)))
     (cfg_state (machine_init_cfg counter_prog evs))
     (λ w σ, ∃ t, w = MIdle t ∧
-       display_t 1000 (ls_mem σ) t
+       display (ls_mem σ) t
          = Ok (DList [DConst (CInt (2 * Z.of_nat (length evs))); DHandler]) ∧
        ls_out σ = [VConst (CString "Counter"); VConst (CString "Return")] ++
                   concat (replicate (length evs)
@@ -654,7 +654,7 @@ Proof.
   intros Hall.
   apply (react_adequacy_state reactΣ _ _
            (λ w m ω, ∃ t, w = MIdle t ∧
-              display_t 1000 m t
+              display m t
                 = Ok (DList [DConst (CInt (2 * Z.of_nat (length evs))); DHandler]) ∧
               ω = [VConst (CString "Counter"); VConst (CString "Return")] ++
                   concat (replicate (length evs)
@@ -673,7 +673,7 @@ Corollary counter_leaf_adequate (evs : list nat) :
     (cfg_state (machine_init_cfg counter_prog evs))
     (λ w σ, ∃ a0 a', rs_init counter_lts a0 ∧ rs_reach counter_lts a0 evs a' ∧
                      w = MIdle (TPath 0) ∧
-                     display_t 1000 (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
+                     display (ls_mem σ) (TPath 0) = Ok (rs_disp counter_lts a')).
 Proof.
   intros Hall.
   apply (root_adequacy reactΣ counter_prog counter_lts

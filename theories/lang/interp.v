@@ -504,28 +504,41 @@ Section interp.
     end.
 
   (** ** The display: the realized view hierarchy in quiescent states
-      (observation of D7; handlers are opaque). *)
-  Fixpoint display_t (fuel : nat) (m : tree_mem) (t : tree)
-      {struct fuel} : res dtree :=
-    match fuel with
-    | O => OOF
-    | S n =>
-        match t with
-        | TConst k => mret (DConst k)
-        | TClos _ _ _ => mret DHandler
-        | TList ts =>
-            (fix go (ts : list tree) : res (list dtree) :=
-               match ts with
-               | [] => mret []
-               | t :: ts' => d ← display_t n m t; ds ← go ts'; mret (d :: ds)
-               end) ts ≫= λ ds, mret (DList ds)
-        | TPath p =>
-            match m !! p with
-            | None => Stuck "display: dangling path"
-            | Some π => display_t n m (vw_child π)
-            end
-        end
+      (observation of D7; handlers are opaque).
+
+      [display_tree f] is structurally recursive on the tree and defers
+      every path to [f]; [display_h] plugs in the memory lookup and
+      counts only path *hops*, so [S (map_size m)] of them suffice on
+      any acyclic memory — a cycle (never reachable) surfaces as
+      [Stuck]. Being total per call keeps the fuel out of theorem
+      statements: they speak of [display m t], not of a numeral. *)
+  Fixpoint display_tree (f : path → res dtree) (t : tree) {struct t} : res dtree :=
+    match t with
+    | TConst k => mret (DConst k)
+    | TClos _ _ _ => mret DHandler
+    | TList ts =>
+        (fix go (ts : list tree) : res (list dtree) :=
+           match ts with
+           | [] => mret []
+           | t1 :: ts' => d ← display_tree f t1; ds ← go ts'; mret (d :: ds)
+           end) ts ≫= λ ds, mret (DList ds)
+    | TPath p => f p
     end.
+
+  Fixpoint display_h (hops : nat) (m : tree_mem) (t : tree)
+      {struct hops} : res dtree :=
+    match hops with
+    | O => Stuck "display: cyclic memory"
+    | S h =>
+        display_tree
+          (λ p, match m !! p with
+                | None => Stuck "display: dangling path"
+                | Some π => display_h h m (vw_child π)
+                end) t
+    end.
+
+  Definition display (m : tree_mem) (t : tree) : res dtree :=
+    display_h (S (map_size m)) m t.
 
   (** ** Render step transitions (Fig. 4) *)
 
@@ -591,5 +604,5 @@ Definition state_at (c : config) (p : path) (l : label) : option val :=
   | None => None
   end.
 
-Definition display_of (fuel : nat) (c : config) : res dtree :=
-  display_t fuel (c_mem c) (c_tree c).
+Definition display_of (c : config) : res dtree :=
+  display (c_mem c) (c_tree c).
